@@ -296,7 +296,7 @@ void scfft_ensurewindow(unsigned short log2_fullsize, unsigned short log2_winsiz
 static void scfft_dowindowing(float *data, unsigned int winsize, unsigned int fullsize, unsigned short log2_winsize,
 							  short wintype, float scalefac)
 {
-	int i;
+	//int i;
 	if (wintype != kRectWindow) {
 		float *win = fftWindow[wintype][log2_winsize];
 		if (!win) return;

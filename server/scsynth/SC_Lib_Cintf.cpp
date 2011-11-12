@@ -213,8 +213,8 @@ void initialize_library(const char *uGensPluginPath)
 		const mach_header	*hdr = _dyld_get_image_header(i);
 		unsigned long slide = _dyld_get_image_vmaddr_slide(i);
 		const char *name = _dyld_get_image_name(i);
-		uint32_t	size;
-		char *sect;
+//		uint32_t	size;
+//		char *sect;
 
 		if(!strcmp(name + (strlen(name) - 4), ".scx")) {
 			read_section(hdr, slide, "__TEXT", "__text");

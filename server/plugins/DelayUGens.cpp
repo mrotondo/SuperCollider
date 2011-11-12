@@ -723,8 +723,8 @@ void MaxLocalBufs_Ctor(MaxLocalBufs *unit)
 {
 	Graph *parent = unit->mParent;
 
-	int offset =  unit->mWorld->mNumSndBufs;
-	int bufnum =  parent->localBufNum;
+	//int offset =  unit->mWorld->mNumSndBufs;
+	//int bufnum =  parent->localBufNum;
 	int maxBufNum = (int)(IN0(0) + .5f);
 	if(!parent->localMaxBufNum) {
 		parent->mLocalSndBufs = (SndBuf*)RTAlloc(unit->mWorld, maxBufNum * sizeof(SndBuf));
@@ -4175,8 +4175,8 @@ inline void FilterX_perform_a(CombX *unit, int inNumSamples, UnitCalcFunc resetF
 
 	float *dlybuf = unit->m_dlybuf;
 	long iwrphase = unit->m_iwrphase;
-	float dsamp = unit->m_dsamp;
-	float feedbk = unit->m_feedbk;
+//	float dsamp = unit->m_dsamp;
+//	float feedbk = unit->m_feedbk;
 	long mask = unit->m_mask;
 
 	LOOP1(inNumSamples,
@@ -6037,8 +6037,8 @@ Pluck - Karplus-Strong
 void Pluck_Ctor(Pluck *unit)
 {
 //	FeedbackDelay_Reset(unit);
-	float maxdelaytime = unit->m_maxdelaytime = IN0(2);
-	float delaytime = unit->m_delaytime = IN0(3);
+	//float maxdelaytime = unit->m_maxdelaytime = IN0(2);
+	//float delaytime = unit->m_delaytime = IN0(3);
 	unit->m_dlybuf = 0;
 	DelayUnit_AllocDelayLine(unit);
 	unit->m_dsamp = CalcDelay(unit, unit->m_delaytime);
@@ -7083,7 +7083,9 @@ static void DelTapWr_first(DelTapWr *unit, int inNumSamples)
 
 	DELTAP_BUF
 	CHECK_DELTAP_BUF
-
+    
+    __unused double unusedLoopMax = loopMax; // LXI fixing warnings
+    
 	// zero out the buffer!
 #ifdef NOVA_SIMD
 	uint32 unroll = bufSamples & (~15);
@@ -7129,6 +7131,8 @@ static inline void DelTapWr_perform(DelTapWr *unit, int inNumSamples)
 	DELTAP_BUF
 	CHECK_DELTAP_BUF
 
+    __unused double unusedLoopMax = loopMax; // LXI fixing warnings
+    
 	LOCK_SNDBUF(buf);
 	int buf_remain = (int)(bufSamples - phase);
 	if (inNumSamples < buf_remain)
@@ -7242,6 +7246,8 @@ inline void DelTapRd_perform1_k(DelTapRd *unit, int inNumSamples)
 	CHECK_DELTAP_BUF
 	float * zout = ZOUT(0);
 
+    __unused float* unusedOut = out; // LXI fixing warnings
+    
 	LOCK_SNDBUF_SHARED(buf);
 	if (delTime == newDelTime)
 	{

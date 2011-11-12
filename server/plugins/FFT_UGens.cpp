@@ -152,7 +152,7 @@ void FFT_Ctor(FFT *unit)
 		unit->m_scfft = 0;
 		return;
 	}
-	int fullbufsize = unit->m_fullbufsize * sizeof(float);
+	//int fullbufsize = unit->m_fullbufsize * sizeof(float);
 	int audiosize = unit->m_audiosize * sizeof(float);
 
 	int hopsize = (int)(sc_max(sc_min(ZIN0(2), 1.f), 0.f) * unit->m_audiosize);
@@ -281,7 +281,7 @@ void IFFT_next(IFFT *unit, int wrongNumSamples)
 
 	// Load state from struct into local scope
 	int pos     = unit->m_pos;
-	int fullbufsize  = unit->m_fullbufsize;
+	//int fullbufsize  = unit->m_fullbufsize;
 	int audiosize = unit->m_audiosize;
 // 	int numSamples = unit->mWorld->mFullRate.mBufLength;
 	int numSamples = unit->m_numSamples;
@@ -369,7 +369,7 @@ void FFTTrigger_Ctor(FFTTrigger *unit)
 
 	int numSamples = unit->mWorld->mFullRate.mBufLength;
 	float dataHopSize = IN0(1);
-	int initPolar = unit->m_polar = (int)IN0(2);
+	//int initPolar = unit->m_polar = (int)IN0(2);
 	unit->m_numPeriods = unit->m_periodsRemain = (int)(((float)unit->m_fullbufsize * dataHopSize) / numSamples) - 1;
 
 	buf->coord = (IN0(2) == 1.f) ? coord_Polar : coord_Complex;

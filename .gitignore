@@ -5,6 +5,8 @@ platform/mac/*.xcodeproj/*.mode1
 platform/mac/*.xcodeproj/*.pbxuser
 platform/mac/*.xcodeproj/*.mode1v3
 platform/mac/build
+*.xcworkspace/
+xcuserdata/
 
 # working files made by packager script
 common/Packager/LinuxExclusions.txt

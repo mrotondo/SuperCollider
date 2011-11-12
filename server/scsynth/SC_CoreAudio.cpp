@@ -2305,7 +2305,7 @@ bool SC_iCoreAudioDriver::DriverStart()
 
 	try
 	{
-		OSStatus ret = AUGraphStart(graph);
+		/*OSStatus ret = */AUGraphStart(graph);
 		AudioOutputUnitStart(inputUnit);
 	} catch (...) {
 	scprintf("exception in SC_CoreAudioDriver::DriverStart\n");

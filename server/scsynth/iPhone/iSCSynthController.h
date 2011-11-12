@@ -14,6 +14,8 @@
 #include "SC_CoreAudio.h"
 #include "SC_WorldOptions.h"
 
+int vpost(const char *fmt, va_list ap);
+
 @interface iSCSynthController : NSObject <UITabBarControllerDelegate> {
 	WorldOptions options;
 	struct World *world;
