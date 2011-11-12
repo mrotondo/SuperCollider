@@ -1,8 +1,13 @@
-
 /////////////////////// ABSTRACT CLASSES ////////////////////////////
 
 QTextViewBase : QView {
+  var <object, <>setBoth = true;
   var <align;
+
+  object_  { arg obj;
+    if( setBoth ) { this.string = obj.asString };
+    object = obj
+  }
 
   align_ { arg aSymbol;
     align = aSymbol;
@@ -76,24 +81,11 @@ QAbstractScroll : QView {
 }
 
 QAbstractStepValue : QView {
-  var <step, <shift_scale, <ctrl_scale, <alt_scale;
+  var <step = 0.1, <shift_scale = 100.0, <ctrl_scale = 10.0, <alt_scale = 0.1;
 
   step_ { arg aFloat;
     step = aFloat;
     this.setProperty( \step, aFloat );
-  }
-
-  value {
-    ^this.getProperty( \value );
-  }
-
-  value_ { arg argVal;
-    this.setProperty( \value, argVal );
-  }
-
-  valueAction_ { arg val;
-    this.value_(val);
-    action.value(this);
   }
 
   shift_scale_ { arg aFloat;
@@ -111,13 +103,16 @@ QAbstractStepValue : QView {
     this.setProperty( \altScale, aFloat );
   }
 
-  increment {
-    this.nonimpl( \increment );
+  getScale { |modifiers|
+    ^case
+      { modifiers.isShift } { shift_scale }
+      { modifiers.isCtrl } { ctrl_scale }
+      { modifiers.isAlt } { alt_scale }
+      { 1 };
   }
 
-  decrement {
-    this.nonimpl( \decrement );
-  }
+  increment { arg factor = 1.0; this.invokeMethod( \increment, factor.asFloat ); }
+  decrement { arg factor = 1.0; this.invokeMethod( \decrement, factor.asFloat ); }
 }
 
 /////////////////////// CONTAINERS ////////////////////////////////
@@ -128,6 +123,10 @@ QHLayoutView : QView {
 
 QVLayoutView : QView {
   *qtClass { ^"QcVLayoutWidget" }
+}
+
+QScrollCanvas : QObject {
+  *qtClass { ^'QcScrollWidget' }
 }
 
 QScrollView : QAbstractScroll {
@@ -174,7 +173,7 @@ QScrollView : QAbstractScroll {
   initQScrollView {
     // NOTE: The canvas widget must not be a QView, so that asking its
     // children for parent will skip it and hit this view instead.
-    this.canvas = QObject("QcScrollWidget");
+    this.canvas = QScrollCanvas();
   }
 }
 
@@ -251,6 +250,12 @@ QTextField : QTextViewBase {
     this.string_( val.asString );
     this.doAction;
   }
+
+  defaultGetDrag { ^this.string; }
+  defaultCanReceiveDrag { ^true; }
+  defaultReceiveDrag {
+    this.valueAction = QView.currentDrag;
+  }
 }
 
 QButton : QView {
@@ -279,6 +284,14 @@ QButton : QView {
     states = stateArray;
     super.setProperty( \states, stateArray );
   }
+
+  defaultGetDrag { ^this.value; }
+  defaultCanReceiveDrag { ^true; }
+  defaultReceiveDrag {
+    if( QView.currentDrag.isNumber )
+      { this.valueAction = QView.currentDrag; }
+      { this.action = QView.currentDrag; };
+  }
 }
 
 QCheckBox : QView {
@@ -301,6 +314,11 @@ QCheckBox : QView {
     this.setProperty(\value,val)
   }
 
+  valueAction_ { |val|
+    this.value_(val);
+    this.doAction;
+  }
+
   string_{ |string|
     this.setProperty(\text,string)
   }
@@ -308,52 +326,21 @@ QCheckBox : QView {
   string{
     ^this.getProperty(\text)
   }
-}
 
-QSlider : QAbstractStepValue {
-  //compatibility stuff:
-  var <orientation;
-  var <> thumbSize;
-
-  *qtClass { ^"QcSlider" }
-
-  *new { arg parent, bounds;
-    ^super.new( parent, bounds ).initQSlider( bounds );
-  }
-
-  knobColor {
-    ^this.palette.buttonColor;
-  }
-
-  knobColor_ { arg color;
-    this.setProperty( \palette, this.palette.buttonColor_(color) );
-  }
-
-  initQSlider { arg bounds;
-    var r;
-    if( bounds.notNil ) {
-      r = bounds.asRect;
-      if( r.width > r.height ) {
-        this.orientation_( \horizontal );
-      } {
-        this.orientation_( \vertical );
-      }
-    }
-  }
-
-  pixelStep {
-    ^0;
-  }
-
-  orientation_ { arg aSymbol;
-    orientation = aSymbol;
-    this.setProperty( \orientation, QOrientation(aSymbol) );
+  defaultGetDrag { ^this.value; }
+  defaultCanReceiveDrag { ^((QView.currentDrag == true) || (QView.currentDrag == false)); }
+  defaultReceiveDrag {
+    this.valueAction = QView.currentDrag;
   }
 }
 
 QPopUpMenu : QItemViewBase {
 
   *qtClass { ^"QcPopUpMenu" }
+
+  allowsReselection { ^this.getProperty( \signalReactivation ) }
+
+  allowsReselection_ { arg flag; ^this.setProperty( \signalReactivation, flag ) }
 
   value {
     var v = this.getProperty( \currentIndex );
@@ -370,5 +357,11 @@ QPopUpMenu : QItemViewBase {
 
   stringColor_ { arg color;
     this.setProperty( \palette, this.palette.buttonTextColor_(color) );
+  }
+
+  defaultGetDrag { ^this.value; }
+  defaultCanReceiveDrag { ^QView.currentDrag.isNumber; }
+  defaultReceiveDrag {
+    this.valueAction = QView.currentDrag;
   }
 }

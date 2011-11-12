@@ -1,4 +1,3 @@
-
 Node {
 
 	var <>nodeID, <>server, <>group;
@@ -139,8 +138,8 @@ Node {
 
 	release { arg releaseTime;
 		server.sendMsg(*this.releaseMsg(releaseTime))
-    	}
-    	releaseMsg { arg releaseTime;
+	}
+	releaseMsg { arg releaseTime;
 		//assumes a control called 'gate' in the synth
 		if(releaseTime.isNil, {
 			releaseTime = 0.0;
@@ -153,9 +152,9 @@ Node {
 		server.sendMsg(10, nodeID);//"/n_trace"
 	}
 	query {
-		OSCresponder(server.addr,'/n_info',{ arg a,b,c;
+		OSCFunc({ arg msg;
 			var cmd,argnodeID,parent,prev,next,isGroup,head,tail;
-			# cmd,argnodeID,parent,prev,next,isGroup,head,tail = c;
+			# cmd,argnodeID,parent,prev,next,isGroup,head,tail = msg;
 			// assuming its me ... if(nodeID == argnodeID)
 			Post << if(isGroup == 1, "Group:" , "Synth:") << nodeID << Char.nl
 				<< "parent   : " << parent << Char.nl
@@ -165,7 +164,7 @@ Node {
 				Post << "head :" << head << Char.nl
 				 << "tail :" << tail << Char.nl << Char.nl;
 			});
-		}).add.removeWhenDone;
+		}, '/n_info', server.addr).oneShot;
 		server.sendMsg(46, nodeID)  //"/n_query"
 	}
 	register { arg assumePlaying=false;
@@ -181,7 +180,6 @@ Node {
 		};
 		this.register;
 		this.addDependant(f);
-		^f;
 	}
 	waitForFree {
 		var c = Condition.new;
@@ -336,7 +334,7 @@ AbstractGroup : Node {
 
 	queryTree { //|action|
 		var resp, done = false;
-		resp = OSCresponderNode(server.addr, '/g_queryTree.reply', { arg time, responder, msg;
+		resp = OSCFunc({ arg msg;
 			var i = 2, tabs = 0, printControls = false, dumpFunc;
 			if(msg[1] != 0, {printControls = true});
 			("NODE TREE Group" + msg[2]).postln;
@@ -380,11 +378,11 @@ AbstractGroup : Node {
 
 			//				action.value(msg);
 			done = true;
-		}).add.removeWhenDone;
+		}, '/g_queryTree.reply', server.addr).oneShot;
 		server.sendMsg("/g_queryTree", nodeID);
 		SystemClock.sched(3, {
 			done.not.if({
-				resp.remove;
+				resp.free;
 				"Server failed to respond to Group:queryTree!".warn;
 			});
 		});

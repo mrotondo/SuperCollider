@@ -1,8 +1,6 @@
-
 ServerOptions
 {
-
-	var <>numAudioBusChannels=128;
+	var <>numPrivateAudioBusChannels=112;
 	var <>numControlBusChannels=4096;
 	var <>numInputBusChannels=8;
 	var <>numOutputBusChannels=8;
@@ -27,8 +25,6 @@ ServerOptions
 	var <>inDevice = nil;
 	var <>outDevice = nil;
 
-	var <>blockAllocClass;
-
 	var <>verbosity = 0;
 	var <>zeroConf = false; // Whether server publishes port to Bonjour, etc.
 
@@ -38,9 +34,9 @@ ServerOptions
 	var <>remoteControlVolume = false;
 
 	var <>memoryLocking = false;
+	var <>threads = nil; // for supernova
 
-	device
-	{
+	device {
 		^if(inDevice == outDevice)
 		{
 			inDevice
@@ -50,8 +46,7 @@ ServerOptions
 		}
 	}
 
-	device_
-	{
+	device_ {
 		|dev|
 		inDevice = outDevice = dev;
 	}
@@ -61,11 +56,11 @@ ServerOptions
 
 	// prevent buffer conflicts in Server-prepareForRecord and Server-scope by
 	// ensuring reserved buffers
-	
+
 	numBuffers {
 		^numBuffers - 2
 	}
-	
+
 	numBuffers_ { | argNumBuffers |
 		numBuffers = argNumBuffers + 2
 	}
@@ -75,9 +70,8 @@ ServerOptions
 		o = if (protocol == \tcp, " -t ", " -u ");
 		o = o ++ port;
 
-		if (numAudioBusChannels != 128, {
-			o = o ++ " -a " ++ numAudioBusChannels;
-		});
+	    o = o ++ " -a " ++ (numPrivateAudioBusChannels + numInputBusChannels + numOutputBusChannels) ;
+
 		if (numControlBusChannels != 4096, {
 			o = o ++ " -c " ++ numControlBusChannels;
 		});
@@ -145,11 +139,24 @@ ServerOptions
 		if (memoryLocking, {
 			o = o ++ " -L";
 		});
+		if (threads.notNil, {
+			if (Server.program.asString.endsWith("supernova")) {
+				o = o ++ " -T " ++ threads;
+			}
+		});
 		^o
 	}
 
 	firstPrivateBus { // after the outs and ins
 		^numOutputBusChannels + numInputBusChannels
+	}
+
+	numAudioBusChannels_{
+		this.deprecated(thisMethod);
+	}
+
+	numAudioBusChannels{
+		^numPrivateAudioBusChannels + numInputBusChannels + numOutputBusChannels
 	}
 
 	bootInProcess {
@@ -167,30 +174,26 @@ ServerOptions
 		^zeroConf;
 	}
 
-	*prListDevices
-	{
+	*prListDevices {
 		arg in, out;
 		_ListAudioDevices
 		^this.primitiveFailed
 	}
 
-	*devices
-	{
+	*devices {
 		^this.prListDevices(1, 1);
 	}
 
-	*inDevices
-	{
+	*inDevices {
 		^this.prListDevices(1, 0);
 	}
 
-	*outDevices
-	{
+	*outDevices {
 		^this.prListDevices(0, 1);
 	}
 }
 
-Server : Model {
+Server {
 	classvar <>local, <>internal, <default, <>named, <>set, <>program, <>sync_s = true;
 
 	var <name, <>addr, <clientID=0;
@@ -212,7 +215,8 @@ Server : Model {
 
 	var <window, <>scopeWindow;
 	var <emacsbuf;
-	var recordBuf, <recordNode, <>recHeaderFormat="aiff", <>recSampleFormat="float"; 	var <>recChannels=2;
+	var recordBuf, <recordNode, <>recHeaderFormat="aiff", <>recSampleFormat="float";
+	var <>recChannels=2;
 
 	var <volume;
 
@@ -322,13 +326,13 @@ Server : Model {
 		if (condition.isNil) { condition = Condition.new };
 		cmdName = args[0].asString;
 		if (cmdName[0] != $/) { cmdName = cmdName.insert(0, $/) };
-		resp = OSCresponderNode(addr, "/done", {|time, resp, msg|
+		resp = OSCFunc({|msg|
 			if (msg[1].asString == cmdName) {
-				resp.remove;
+				resp.free;
 				condition.test = true;
 				condition.signal;
 			};
-		}).add;
+		}, '/done', addr);
 		condition.test = false;
 		addr.sendBundle(nil, args);
 		condition.wait;
@@ -418,12 +422,11 @@ Server : Model {
 	}
 
 	wait { arg responseName;
-		var resp, routine;
+		var routine;
 		routine = thisThread;
-		resp = OSCresponderNode(addr, responseName, {
-			resp.remove; routine.resume(true);
-		});
-		resp.add;
+		OSCFunc({
+			routine.resume(true);
+		}, responseName, addr).oneShot;
 	}
 
 	waitForBoot { arg onComplete, limit=100;
@@ -437,13 +440,17 @@ Server : Model {
 
 		^Routine({
 			while({
-				(serverRunning.not or: (serverBooting and: mBootNotifyFirst.not)) and: {(limit = limit - 1) > 0}
+				((serverRunning.not
+				  or: (serverBooting and: mBootNotifyFirst.not))
+				 and: {(limit = limit - 1) > 0})
+				and: { pid.tryPerform(\pidRunning) == true }
 			},{
 				0.2.wait;
 			});
 
 			if(serverRunning.not,{
 				"server failed to start".error;
+				"For advice: [http://supercollider.sf.net/wiki/index.php/ERROR:_server_failed_to_start]".postln;
 				serverBooting = false;
 			}, onComplete);
 		}).play(AppClock);
@@ -484,24 +491,28 @@ Server : Model {
 	}
 
 	addStatusWatcher {
-		statusWatcher =
-			OSCresponderNode(addr, '/status.reply', { arg time, resp, msg;
-				var cmd, one;
-				if(notify){
-					if(notified.not){
-						this.sendNotifyRequest;
-						"Receiving notification messages from server %\n".postf(this.name);
-					}
-				};
-				alive = true;
-				#cmd, one, numUGens, numSynths, numGroups, numSynthDefs,
-					avgCPU, peakCPU, sampleRate, actualSampleRate = msg;
-				{
-					this.serverRunning_(true);
-					this.changed(\counts);
-					nil // no resched
-				}.defer;
-			}).add;
+		if(statusWatcher.isNil) {
+			statusWatcher =
+				OSCFunc({ arg msg;
+					var cmd, one;
+					if(notify){
+						if(notified.not){
+							this.sendNotifyRequest;
+							"Receiving notification messages from server %\n".postf(this.name);
+						}
+					};
+					alive = true;
+					#cmd, one, numUGens, numSynths, numGroups, numSynthDefs,
+						avgCPU, peakCPU, sampleRate, actualSampleRate = msg;
+					{
+						this.serverRunning_(true);
+						this.changed(\counts);
+						nil // no resched
+					}.defer;
+				}, '/status.reply', addr).fix;
+		} {
+			statusWatcher.enable;
+		};
 	}
 	// Buffer objects are cached in an Array for easy
 	// auto buffer info updating
@@ -530,9 +541,17 @@ Server : Model {
 	cachedBuffersDo { |func| Buffer.cachedBuffersDo(this, func) }
 	cachedBufferAt { |bufnum| ^Buffer.cachedBufferAt(this, bufnum) }
 
-	startAliveThread { arg delay=4.0;
+	inputBus {
+		^Bus(\audio, this.options.numOutputBusChannels, this.options.numInputBusChannels, this);
+	}
+
+	outputBus {
+		^Bus(\audio, 0, this.options.numOutputBusChannels, this);
+	}
+
+	startAliveThread { arg delay=0.0;
+		this.addStatusWatcher;
 		^aliveThread ?? {
-			this.addStatusWatcher;
 			aliveThread = Routine({
 				// this thread polls the server to see if it is alive
 				delay.wait;
@@ -553,7 +572,7 @@ Server : Model {
 			aliveThread = nil;
 		});
 		if( statusWatcher.notNil, {
-			statusWatcher.remove;
+			statusWatcher.free;
 			statusWatcher = nil;
 		});
 	}
@@ -578,6 +597,9 @@ Server : Model {
 		bootNotifyFirst = true;
 		this.doWhenBooted({
 			serverBooting = false;
+			if (sendQuit.isNil) {
+				sendQuit = not(this.inProcess) and: {this.isLocal};
+			};
 			this.initTree;
 			(volume.volume != 0.0).if({
 				volume.play;
@@ -656,6 +678,26 @@ Server : Model {
 	}
 
 	quit {
+		var	serverReallyQuitWatcher, serverReallyQuit = false;
+		statusWatcher !? {
+			statusWatcher.disable;
+			if(notified) {
+				serverReallyQuitWatcher = OSCFunc({ |msg|
+					if(msg[1] == '/quit') {
+						statusWatcher.enable;
+						serverReallyQuit = true;
+						serverReallyQuitWatcher.free;
+					};
+				}, '/done', addr);
+				// don't accumulate quit-watchers if /done doesn't come back
+				AppClock.sched(3.0, {
+					if(serverReallyQuit.not) {
+						"Server % failed to quit after 3.0 seconds.".format(this.name).warn;
+						serverReallyQuitWatcher.free;
+					};
+				});
+			};
+		};
 		addr.sendMsg("/quit");
 		if (inProcess, {
 			this.quitInProcess;
@@ -664,9 +706,11 @@ Server : Model {
 			"/quit sent\n".inform;
 		});
 		alive = false;
+		notified = false;
 		dumpMode = 0;
 		pid = nil;
 		serverBooting = false;
+		sendQuit = nil;
 		this.serverRunning = false;
 		if(scopeWindow.notNil) { scopeWindow.quit };
 		RootNode(this).freeAll;
@@ -678,12 +722,10 @@ Server : Model {
 
 	*quitAll {
 		set.do({ arg server;
-			if ((server.sendQuit === true)
-				or: { server.sendQuit.isNil and: { server.remoteControlled }}) {
+			if (server.sendQuit === true) {
 				server.quit
 			};
 		})
-		//		set.do({ arg server; if(server.isLocal or: {server.inProcess} ) {server.quit}; })
 	}
 	*killAll {
 		// if you see Exception in World_OpenUDP: unable to bind udp socket
@@ -692,7 +734,7 @@ Server : Model {
 		// you can't cause them to quit via OSC (the boot button)
 
 		// this brutally kills them all off
-		"killall -9 scsynth".unixCmd;
+		thisProcess.platform.killAll(this.program.basename);
 		this.quitAll;
 	}
 	freeAll {
@@ -724,7 +766,7 @@ Server : Model {
 			}
 		}
 	}
-	
+
 	*allRunningServers {
 		^this.all.select(_.serverRunning)
 	}
@@ -801,7 +843,7 @@ Server : Model {
 			}{
 				recordNode.run(true)
 			};
-			"Recording".postln;
+			"Recording: %\n".postf(recordBuf.path);
 		};
 	}
 
@@ -810,19 +852,21 @@ Server : Model {
 	}
 
 	stopRecording {
-		recordNode.notNil.if({
+		if(recordNode.notNil) {
 			recordNode.free;
 			recordNode = nil;
 			recordBuf.close({ arg buf; buf.free; });
+			"Recording Stopped: %\n".postf(recordBuf.path);
 			recordBuf = nil;
-			"Recording Stopped".postln },
-		{ "Not Recording".warn });
+		} {
+			"Not Recording".warn
+		};
 	}
 
 	prepareForRecord { arg path;
 		if (path.isNil) {
 			if(File.exists(thisProcess.platform.recordingsDir).not) {
-				systemCmd("mkdir" + thisProcess.platform.recordingsDir.quote);
+				thisProcess.platform.recordingsDir.mkdir
 			};
 
 			// temporary kludge to fix Date's brokenness on windows
@@ -836,6 +880,7 @@ Server : Model {
 		recordBuf = Buffer.alloc(this, 65536, recChannels,
 			{arg buf; buf.writeMsg(path, recHeaderFormat, recSampleFormat, 0, 0, true);},
 			this.options.numBuffers + 1); // prevent buffer conflicts by using reserved bufnum
+		recordBuf.path = path;
 		SynthDef("server-record", { arg bufnum;
 			DiskOut.ar(bufnum, In.ar(0, recChannels))
 		}).send(this);
@@ -861,7 +906,7 @@ Server : Model {
 	queryAllNodes { arg queryControls = false;
 		var resp, done = false;
 		if(isLocal, {this.sendMsg("/g_dumpTree", 0, queryControls.binaryValue);}, {
-			resp = OSCresponderNode(addr, '/g_queryTree.reply', { arg time, responder, msg;
+			resp = OSCFunc({ arg msg;
 				var i = 2, tabs = 0, printControls = false, dumpFunc;
 				if(msg[1] != 0, {printControls = true});
 				("NODE TREE Group" + msg[2]).postln;
@@ -903,11 +948,11 @@ Server : Model {
 					dumpFunc.value(msg[3]);
 				});
 				done = true;
-			}).add.removeWhenDone;
+			}, '/g_queryTree.reply', addr).oneShot;
 			this.sendMsg("/g_queryTree", 0, queryControls.binaryValue);
 			SystemClock.sched(3, {
 				done.not.if({
-					resp.remove;
+					resp.free;
 					"Remote server failed to respond to queryAllNodes!".warn;
 				});
 			});
@@ -925,7 +970,7 @@ Server : Model {
 		);
 		stream << codeStr;
 	}
-	
+
 	archiveAsCompileString { ^true }
 	archiveAsObject { ^true }
 

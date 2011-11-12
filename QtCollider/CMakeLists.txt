@@ -13,9 +13,11 @@ set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}  -DQC_DEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}  -DQC_DEBUG")
 
 set( QT_COLLIDER_HDRS
+  QcApplication.h
   QObjectProxy.h
   QWidgetProxy.h
   widgets/BasicWidgets.h
+  widgets/QcTreeWidget.h
   widgets/QcScrollArea.h
   widgets/QcNumberBox.h
   widgets/QcSlider.h
@@ -26,14 +28,16 @@ set( QT_COLLIDER_HDRS
   widgets/QcScope.h
   widgets/QcGraph.h
   widgets/QcLevelIndicator.h
-  widgets/QcHelpBrowser.hpp
   widgets/QcCanvas.h
   widgets/QcSoundFileView.h
   widgets/QcFileDialog.h
+  widgets/QcWebView.h
+  widgets/QcWindow.h
   layouts/layouts.hpp
 )
 
 set( QT_COLLIDER_SRCS
+  debug.cpp
   interface.cpp
   QcApplication.cpp
   Common.cpp
@@ -41,12 +45,14 @@ set( QT_COLLIDER_SRCS
   QWidgetProxy.cpp
   Slot.cpp
   QcObjectFactory.cpp
+  hacks/hacks_x11.cpp
   primitives/primitives.cpp
   primitives/prim_QObject.cpp
   primitives/prim_QPen.cpp
   primitives/prim_misc.cpp
   primitives/prim_QWidget.cpp
   widgets/BasicWidgets.cpp
+  widgets/QcTreeWidget.cpp
   widgets/QcScrollArea.cpp
   widgets/QcAbstractStepValue.cpp
   widgets/QcNumberBox.cpp
@@ -59,12 +65,13 @@ set( QT_COLLIDER_SRCS
   widgets/QcLevelIndicator.cpp
   widgets/QcWindow.cpp
   widgets/QcGraph.cpp
-  widgets/QcHelpBrowser.cpp
   widgets/QcCanvas.cpp
   widgets/QcSoundFileView.cpp
   widgets/QcFileDialog.cpp
+  widgets/QcWebView.cpp
   layouts/classic_layouts.cpp
   layouts/layouts.cpp
+  style/ProxyStyle.cpp
 )
 
 set( QT_USE_QTWEBKIT TRUE )
@@ -102,12 +109,19 @@ endif(APPLE)
 set_property ( TARGET QtCollider
                APPEND PROPERTY COMPILE_DEFINITIONS QT_COLLIDER_EXPORTING )
 
-target_link_libraries( QtCollider ${QT_LIBRARIES} )
+target_link_libraries( QtCollider ${QT_LIBRARIES} ${MATH_LIBRARY})
 
-qt4_wrap_cpp( QC_LANG_CLIENT_MOC_SRCS LanguageClient.h )
-add_library( QcLangClient STATIC LanguageClient.cpp ${QC_LANG_CLIENT_MOC_SRCS} )
-set_property ( TARGET QcLangClient
-               APPEND PROPERTY COMPILE_FLAGS -fpic )
+
+if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+	find_package(X11)
+
+	if(X11_FOUND)
+		include_directories(X11_INCLUDE_DIR)
+		target_link_libraries( QtCollider ${X11_X11_LIB})
+	elseif()
+		message(SEND_ERROR "Cannot find libx11")
+	endif()
+endif()
 
 if(APPLE)
 	# determines the app name and app install location (scappbundlename, scappdir):

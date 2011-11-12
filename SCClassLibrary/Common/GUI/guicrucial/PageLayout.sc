@@ -1,9 +1,8 @@
-
 PageLayout  {
 	/* creates and manages the open/close lifecycle of a window with a top level FlowView.
 		it also manages onClose handlers for use by ObjectGui's MVC model,
 		intelligent resizing
-		 
+
 		this was previously called MultiPageLayout (for historical reasons)
 		which is now an innacurate name.
 		the MultiPageLayout class is in cruciallib pending deprecation
@@ -54,7 +53,8 @@ PageLayout  {
 		});
 		autoRemoves = [];
 	}
-	asView { ^this.view }
+	asView { ^this.view.asView }
+	asFlowView { ^this.view }
 	bounds { ^this.view.bounds }
 	add { arg view;
 		this.view.add(view);

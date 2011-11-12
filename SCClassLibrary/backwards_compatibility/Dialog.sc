@@ -1,8 +1,8 @@
-
 GetFileDialog {
 
 	*new { arg function;
 		// platform neutral (eventually)
+		this.deprecated(thisMethod, File.class.findMethod(\openDialog));
 		File.openDialog(nil,
 			{ arg path; function.value(true,path) },
 			{  function.value(false) } );
@@ -17,6 +17,7 @@ GetStringDialog  {
 
 	*new { arg prompt,defaultString="",func;
 		var b;
+		this.deprecated(thisMethod, EZText.class.findMethod(\new));
 		Sheet({ arg l;
 			b = 	TextField(l,Rect(0,0,150,30));
 			b.string = String.new ++ defaultString;

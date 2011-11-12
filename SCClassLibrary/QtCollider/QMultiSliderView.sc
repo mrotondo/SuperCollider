@@ -1,5 +1,5 @@
 QMultiSliderView : QView {
-  var <size=0, <editable=true, <step=0;
+  var <editable=true, <step=0;
   var <reference;
   var <indexIsHorizontal=true, <elasticMode=false;
   var <indexThumbSize=12, <valueThumbSize=12, <gap=1;
@@ -17,10 +17,8 @@ QMultiSliderView : QView {
     this.setProperty( \palette, this.palette.baseColor_(color) );
   }
 
-  size_ { arg int;
-    size = int;
-    this.setProperty( \size, int );
-  }
+  size { ^this.getProperty(\sliderCount) }
+  size_ { arg int; this.setProperty( \sliderCount, int ) }
 
   indexIsHorizontal_ { arg bool;
     indexIsHorizontal = bool;
@@ -162,5 +160,38 @@ QMultiSliderView : QView {
 
   doMetaAction {
     metaAction.value(this);
+  }
+
+  defaultKeyDownAction { arg char, mod, uni, key;
+    key.switch (
+      QKey.left, { this.index = this.index - 1 },
+      QKey.right, { this.index = this.index + 1 },
+      QKey.up, { this.currentvalue = this.currentvalue + this.step },
+      QKey.down, { this.currentvalue = this.currentvalue - this.step }
+    );
+  }
+
+  defaultGetDrag {
+    var val = this.value;
+    var c, i;
+    if( val.size < 1 ) {^nil};
+    c = this.selectionSize;
+    if( c > 1 ) {
+      i = this.index;
+      ^val[i..(i+c-1)];
+    }
+    ^this.value;
+  }
+  defaultCanReceiveDrag { ^true; }
+  defaultReceiveDrag {
+    arg data = QView.currentDrag;
+    if( data.size > 0 ) {
+      if( data[0].size > 0 ) {
+        this.value = data[0];
+        this.reference = data[1];
+      }{
+        this.value = data;
+      }
+    };
   }
 }

@@ -73,6 +73,13 @@ struct Lag3UD : public Unit
 	float m_lagu, m_lagd, m_b1u, m_b1d, m_y1a, m_y1b, m_y1c;
 };
 
+struct VarLag : public Unit
+{
+	double m_level, m_slope;
+	int m_counter;
+	float m_in, m_lagTime;
+};
+
 struct OnePole : public Unit
 {
 	float m_b1, m_y1;
@@ -329,6 +336,9 @@ extern "C"
 
 	void Lag3UD_next(Lag3UD *unit, int inNumSamples);
 	void Lag3UD_Ctor(Lag3UD* unit);
+
+	void VarLag_next(VarLag *unit, int inNumSamples);
+	void VarLag_Ctor(VarLag* unit);
 
 	void OnePole_next_a(OnePole *unit, int inNumSamples);
 	void OnePole_next_k(OnePole *unit, int inNumSamples);
@@ -907,6 +917,103 @@ void Lag3UD_Ctor(Lag3UD* unit)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
+void VarLag_next(VarLag *unit, int inNumSamples)
+{
+	float *out = ZOUT(0);
+	float *in = IN(0);
+	float lagTime = ZIN0(1);
+	double slope = unit->m_slope;
+	double level = unit->m_level;
+	int counter = unit->m_counter;
+	int remain = inNumSamples;
+
+	if ( *in != unit->m_in) {
+		counter = (int)(lagTime * SAMPLERATE);
+		counter = unit->m_counter = sc_max(1, counter);
+		slope = unit->m_slope = ( *in - unit->m_level) / counter;
+		unit->m_in = *in;
+		unit->m_lagTime = lagTime;
+	} else {
+		if (lagTime != unit->m_lagTime) {
+			float scaleFactor = lagTime/unit->m_lagTime;
+			counter = (int) (unit->m_counter * scaleFactor);
+			counter = unit->m_counter = sc_max(1, counter);
+			slope = unit->m_slope / scaleFactor;
+			unit->m_lagTime = lagTime;
+		}
+	}
+	if(counter >0) {
+		LOOP(remain,
+			 ZXP(out) = level;
+			 if( counter > 0) {
+			 level += slope; --counter;
+			 } else {
+			 level = unit->m_in;
+			 };
+			 )
+	} {
+		LOOP(remain, ZXP(out) = level );
+	}
+
+	unit->m_level = level;
+	unit->m_slope = slope;
+	unit->m_counter = counter;
+}
+
+
+void VarLag_next_1(VarLag *unit, int inNumSamples)
+{
+	float *out = OUT(0);
+	float in = *IN(0);
+	float lagTime = ZIN0(1);
+	int counter = unit->m_counter;
+	if ( in != unit->m_in) {
+		counter = (int)(lagTime * SAMPLERATE);
+		unit->m_counter = counter = sc_max(1, counter);
+		unit->m_slope = ( in - unit->m_level) / counter;
+		unit->m_in = in;
+		unit->m_lagTime = lagTime;
+	} {
+		if (lagTime != unit->m_lagTime) {
+			if (counter != 0) {
+				double scaleFactor = lagTime/unit->m_lagTime;
+				counter = (int) (unit->m_counter * scaleFactor);
+				unit->m_counter = counter = sc_max(1, counter);
+			unit->m_slope = unit->m_slope / scaleFactor; }
+		unit->m_lagTime = lagTime; }
+	}
+	*out = unit->m_level;
+
+	if (unit->m_counter > 0) {
+		unit->m_level += unit->m_slope;
+		--unit->m_counter;
+	} else {
+		unit->m_level = unit->m_in;
+	}
+
+}
+
+void VarLag_Ctor(VarLag* unit)
+{
+	if (BUFLENGTH == 1) {
+		SETCALC(VarLag_next_1);
+	} else {
+		SETCALC(VarLag_next);
+	}
+	float in = *IN(0);
+	float lagTime = ZIN0(1);
+	unit->m_level = ZIN0(2);
+	int counter = (int)(lagTime * SAMPLERATE);
+	unit->m_counter = counter = sc_max(1, counter);
+	unit->m_slope = ( in - unit->m_level) / counter;
+	unit->m_in = in;
+	unit->m_lagTime = lagTime;
+	ZOUT0(0) = unit->m_level;
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
 void OnePole_next_a(OnePole *unit, int inNumSamples)
 {
 	//printf("OnePole_next_a\n");
@@ -1212,39 +1319,63 @@ void Decay2_next(Decay2* unit, int inNumSamples)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void LeakDC_Ctor(LeakDC *unit)
+void LeakDC_next_i_4(LeakDC* unit, int inNumSamples)
 {
-	//printf("LeakDC_Ctor\n");
-	if (BUFLENGTH == 1)
-		SETCALC(LeakDC_next_1);
-	else
-		SETCALC(LeakDC_next);
-	unit->m_b1 = 0.0;
-	unit->m_x1 = 0.0;
-	unit->m_y1 = 0.0;
-	LeakDC_next_1(unit, 1);
-}
-
-
-void LeakDC_next(LeakDC* unit, int inNumSamples)
-{
-	//printf("LeakDC_next_a\n");
-
 	float *out = ZOUT(0);
 	float *in = ZIN(0);
 	double b1 = unit->m_b1;
-	unit->m_b1 = ZIN0(1);
-
 	double y1 = unit->m_y1;
 	double x1 = unit->m_x1;
 
-	if (b1 == unit->m_b1) {
-		LOOP1(inNumSamples,
-			double x0 = ZXP(in);
-			ZXP(out) = y1 = x0 - x1 + b1 * y1;
-			x1 = x0;
-		);
+	LOOP1(inNumSamples/4,
+		double x00 = ZXP(in);
+		double x01 = ZXP(in);
+		double x02 = ZXP(in);
+		double x03 = ZXP(in);
+		ZXP(out) = y1 = x00 - x1 + b1 * y1;
+		ZXP(out) = y1 = x01 - x00 + b1 * y1;
+		ZXP(out) = y1 = x02 - x01 + b1 * y1;
+		ZXP(out) = y1 = x03 - x02 + b1 * y1;
+
+		x1 = x03;
+	);
+	unit->m_x1 = x1;
+	unit->m_y1 = zapgremlins(y1);
+}
+
+void LeakDC_next_i(LeakDC* unit, int inNumSamples)
+{
+	float *out = ZOUT(0);
+	float *in = ZIN(0);
+	double b1 = unit->m_b1;
+	double y1 = unit->m_y1;
+	double x1 = unit->m_x1;
+
+	LOOP1(inNumSamples,
+		double x0 = ZXP(in);
+		ZXP(out) = y1 = x0 - x1 + b1 * y1;
+		x1 = x0;
+	);
+	unit->m_x1 = x1;
+	unit->m_y1 = zapgremlins(y1);
+}
+
+void LeakDC_next(LeakDC* unit, int inNumSamples)
+{
+	if (ZIN0(1) == unit->m_b1) {
+		if ((inNumSamples & 3) == 0)
+			LeakDC_next_i_4(unit, inNumSamples);
+		else
+			LeakDC_next_i(unit, inNumSamples);
 	} else {
+		float *out = ZOUT(0);
+		float *in = ZIN(0);
+		double b1 = unit->m_b1;
+		unit->m_b1 = ZIN0(1);
+
+		double y1 = unit->m_y1;
+		double x1 = unit->m_x1;
+
 		double b1_slope = CALCSLOPE(unit->m_b1, b1);
 		LOOP1(inNumSamples,
 			double x0 = ZXP(in);
@@ -1252,10 +1383,11 @@ void LeakDC_next(LeakDC* unit, int inNumSamples)
 			x1 = x0;
 			b1 += b1_slope;
 		);
+		unit->m_x1 = x1;
+		unit->m_y1 = zapgremlins(y1);
 	}
-	unit->m_x1 = x1;
-	unit->m_y1 = zapgremlins(y1);
 }
+
 
 void LeakDC_next_1(LeakDC* unit, int inNumSamples)
 {
@@ -1272,6 +1404,27 @@ void LeakDC_next_1(LeakDC* unit, int inNumSamples)
 	unit->m_y1 = zapgremlins(y1);
 }
 
+void LeakDC_Ctor(LeakDC *unit)
+{
+	//printf("LeakDC_Ctor\n");
+	if (BUFLENGTH == 1)
+		SETCALC(LeakDC_next_1);
+	else {
+		if (INRATE(1) == calc_ScalarRate) {
+			if ((BUFLENGTH & 3) == 0)
+				SETCALC(LeakDC_next_i_4);
+			else
+				SETCALC(LeakDC_next_i);
+		} else
+			SETCALC(LeakDC_next);
+	}
+	unit->m_b1 = 0.0;
+	unit->m_x1 = ZIN0(0);
+	unit->m_y1 = 0.0;
+	LeakDC_next_1(unit, 1);
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void TwoPole_Ctor(TwoPole *unit)
@@ -1284,7 +1437,9 @@ void TwoPole_Ctor(TwoPole *unit)
 	unit->m_y2 = 0.f;
 	unit->m_freq = 0.f;
 	unit->m_reson = 0.f;
-	ZOUT0(0) = 0.f;
+	PUSH_LOOPVALS
+	TwoPole_next(unit, 1);
+	POP_LOOPVALS
 }
 
 
@@ -1358,7 +1513,9 @@ void TwoZero_Ctor(TwoZero* unit)
 	unit->m_x2 = 0.f;
 	unit->m_freq = 0.f;
 	unit->m_reson = 0.f;
-	ZOUT0(0) = 0.f;
+	PUSH_LOOPVALS
+	TwoZero_next(unit, 1);
+	POP_LOOPVALS
 }
 
 void TwoZero_next(TwoZero* unit, int inNumSamples)
@@ -1441,7 +1598,9 @@ void APF_Ctor(APF* unit)
 	unit->m_x2 = 0.f;
 	unit->m_freq = 0.f;
 	unit->m_reson = 0.f;
-	ZOUT0(0) = 0.f;
+	PUSH_LOOPVALS
+	APF_next(unit, 1);
+	POP_LOOPVALS
 }
 
 
@@ -1761,7 +1920,9 @@ void LPZ2_Ctor(LPZ2* unit)
 	//printf("LPZ2_Reset\n");
 	SETCALC(LPZ2_next);
 	unit->m_x1 = unit->m_x2 = ZIN0(0);
-	ZOUT0(0) = 0.f;
+	PUSH_LOOPVALS
+	LPZ2_next(unit, 1);
+	POP_LOOPVALS
 }
 
 
@@ -1802,7 +1963,9 @@ void HPZ2_Ctor(HPZ2* unit)
 	//printf("HPZ2_Reset\n");
 	SETCALC(HPZ2_next);
 	unit->m_x1 = unit->m_x2 = ZIN0(0);
-	ZOUT0(0) = 0.f;
+	PUSH_LOOPVALS
+	HPZ2_next(unit, 1);
+	POP_LOOPVALS
 }
 
 
@@ -1843,7 +2006,9 @@ void BPZ2_Ctor(BPZ2* unit)
 	//printf("BPZ2_Reset\n");
 	SETCALC(BPZ2_next);
 	unit->m_x1 = unit->m_x2 = ZIN0(0);
-	ZOUT0(0) = 0.f;
+	PUSH_LOOPVALS
+	BPZ2_next(unit, 1);
+	POP_LOOPVALS
 }
 
 
@@ -1884,7 +2049,9 @@ void BRZ2_Ctor(BRZ2* unit)
 	//printf("BRZ2_Reset\n");
 	SETCALC(BRZ2_next);
 	unit->m_x1 = unit->m_x2 = ZIN0(0);
-	ZOUT0(0) = 0.f;
+	PUSH_LOOPVALS
+	BRZ2_next(unit, 1);
+	POP_LOOPVALS
 }
 
 
@@ -1924,7 +2091,7 @@ void Slew_Ctor(Slew* unit)
 {
 	//printf("Slew_Reset\n");
 	SETCALC(Slew_next);
-	unit->mLevel = 0.f;
+	unit->mLevel = ZIN0(0);
 	Slew_next(unit, 1);
 }
 
@@ -1935,8 +2102,8 @@ void Slew_next(Slew* unit, int inNumSamples)
 
 	float *out = ZOUT(0);
 	float *in = ZIN(0);
-	float upf = ZIN0(1) *  unit->mRate->mSampleDur;
-	float dnf = 0.f - ZIN0(2) *  unit->mRate->mSampleDur;
+	float upf = ZIN0(1) * unit->mRate->mSampleDur;
+	float dnf = 0.f - ZIN0(2) * unit->mRate->mSampleDur;
 	float level = unit->mLevel;
 	LOOP1(inNumSamples,
 		float slope = ZXP(in) - level;
@@ -1982,7 +2149,7 @@ void RLPF_Ctor(RLPF* unit)
 	unit->m_y2 = 0.f;
 	unit->m_freq = 0.f;
 	unit->m_reson = 0.f;
-	ZOUT0(0) = 0.f;
+	RLPF_next_1(unit, 1);
 }
 
 
@@ -2133,7 +2300,7 @@ void RHPF_Ctor(RHPF* unit)
 	unit->m_y2 = 0.;
 	unit->m_freq = 0.f;
 	unit->m_reson = 0.f;
-	ZOUT0(0) = 0.f;
+	RHPF_next_1(unit, 1);
 }
 
 
@@ -2268,20 +2435,18 @@ void RHPF_next_1(RHPF* unit, int inNumSamples)
 
 void LPF_Ctor(LPF* unit)
 {
-	////printf("LPF_Reset\n");
-
-	if (unit->mBufLength == 1) {
+	if (unit->mBufLength == 1)
 		SETCALC(LPF_next_1);
-	} else {
+	else
 		SETCALC(LPF_next);
-		unit->m_a0 = 0.f;
-		unit->m_b1 = 0.f;
-		unit->m_b2 = 0.f;
-		unit->m_y1 = 0.f;
-		unit->m_y2 = 0.f;
-		unit->m_freq = 0.f;
-		ZOUT0(0) = 0.f;
-	}
+
+	unit->m_a0 = 0.f;
+	unit->m_b1 = 0.f;
+	unit->m_b2 = 0.f;
+	unit->m_y1 = 0.f;
+	unit->m_y2 = 0.f;
+	unit->m_freq = 0.f;
+	LPF_next_1(unit, 1);
 }
 
 
@@ -2423,7 +2588,8 @@ void HPF_Ctor(HPF* unit)
 	unit->m_y1 = 0.;
 	unit->m_y2 = 0.;
 	unit->m_freq = -1e6f;
-	ZOUT0(0) = 0.f;
+
+	HPF_next_1(unit, 1);
 }
 
 
@@ -2559,9 +2725,9 @@ void BPF_Ctor(BPF* unit)
 	unit->m_y2 = 0.f;
 	unit->m_freq = 0.f;
 	unit->m_bw = 0.f;
-	ZOUT0(0) = 0.f;
-}
 
+	BPF_next_1(unit, 1);
+}
 
 void BPF_next(BPF* unit, int inNumSamples)
 {
@@ -2707,7 +2873,7 @@ void BRF_Ctor(BRF* unit)
 	unit->m_y2 = 0.f;
 	unit->m_freq = 0.f;
 	unit->m_bw = 0.f;
-	ZOUT0(0) = 0.f;
+	BRF_next_1(unit, 1);
 }
 
 
@@ -2867,7 +3033,9 @@ void MidEQ_Ctor(MidEQ* unit)
 	unit->m_freq = 0.f;
 	unit->m_bw = 0.f;
 	unit->m_db = 0.f;
-	ZOUT0(0) = 0.f;
+	PUSH_LOOPVALS
+	MidEQ_next(unit, 1);
+	POP_LOOPVALS
 }
 
 
@@ -3052,7 +3220,9 @@ void Resonz_Ctor(Resonz* unit)
 	unit->m_y2 = 0.f;
 	unit->m_freq = 0.f;
 	unit->m_rq = 0.f;
+	PUSH_LOOPVALS
 	Resonz_next(unit, 1);
+	POP_LOOPVALS
 }
 
 
@@ -3246,7 +3416,7 @@ void Formlet_Ctor(Formlet* unit)
 	unit->m_freq = 0.f;
 	unit->m_attackTime = 0.f;
 	unit->m_decayTime = 0.f;
-	ZOUT0(0) = 0.f;
+	Formlet_next_1(unit, 1);
 }
 
 void Formlet_next(Formlet* unit, int inNumSamples)
@@ -3460,7 +3630,7 @@ void FOS_Ctor(FOS* unit)
 	unit->m_a0 = 0.f;
 	unit->m_a1 = 0.f;
 	unit->m_b1 = 0.f;
-	ZOUT0(0) = 0.f;
+	FOS_next_1(unit, 1);
 }
 
 void FOS_next_a(FOS* unit, int inNumSamples)
@@ -3555,7 +3725,7 @@ void SOS_Ctor(SOS* unit)
 	unit->m_a2 = 0.f;
 	unit->m_b1 = 0.f;
 	unit->m_b2 = 0.f;
-	ZOUT0(0) = 0.f;
+	SOS_next_1(unit, 1);
 }
 
 void SOS_next_a(SOS *unit, int inNumSamples)
@@ -3681,7 +3851,7 @@ void Compander_Ctor(Compander* unit)
 	unit->m_relaxcoef = 0.f;
 	unit->m_prevmaxval = 0.f;
 	unit->m_gain = 0.f;
-	ZOUT0(0) = 0.f;
+	Compander_next(unit, 1);
 }
 
 void Compander_next(Compander* unit, int inNumSamples)
@@ -3781,7 +3951,7 @@ void Normalizer_Ctor(Normalizer* unit)
 	unit->m_xinbuf = unit->m_table - ZOFF;
 	unit->m_xmidbuf = unit->m_xinbuf + unit->m_bufsize;
 	unit->m_xoutbuf = unit->m_xmidbuf + unit->m_bufsize;
-	ZOUT0(0) = 0.f;
+	Normalizer_next(unit, 1);
 }
 
 
@@ -3882,7 +4052,7 @@ void Limiter_Ctor(Limiter* unit)
 	unit->m_xinbuf = unit->m_table - ZOFF;
 	unit->m_xmidbuf = unit->m_xinbuf + unit->m_bufsize;
 	unit->m_xoutbuf = unit->m_xmidbuf + unit->m_bufsize;
-	ZOUT0(0) = 0.f;
+	Limiter_next(unit, 1);
 }
 
 
@@ -3978,7 +4148,8 @@ void Amplitude_Ctor(Amplitude* unit)
 	float relax = ZIN0(2);
 	unit->m_relaxcoef = relax == 0.0 ? 0.0 : exp(log1/(relax * SAMPLERATE));
 
-	ZOUT0(0) = unit->m_previn = sc_abs(ZIN0(0));
+	unit->m_previn = 0;
+	Amplitude_next(unit, 1);
 }
 
 void Amplitude_next(Amplitude* unit, int inNumSamples)
@@ -4557,6 +4728,20 @@ federico.fontana@univr.it
 
 Ported to C++ for SuperCollider by Dan Stowell - August 2007
 http://www.mcld.co.uk/
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 */
 //////////////////////////////////////////////////////////////////
 
@@ -4685,7 +4870,9 @@ void BLowPass_Ctor(BLowPass* unit)
 	unit->m_y1 = 0.;
 
 	unit->m_y2 = 0.;
-	ClearUnitOutputs(unit, 1);
+	PUSH_LOOPVALS
+	BLowPass_next_kk(unit, 1);
+	POP_LOOPVALS
 }
 
 void BLowPass_next_aa(BLowPass *unit, int inNumSamples)
@@ -4876,7 +5063,9 @@ void BHiPass_Ctor(BHiPass* unit)
 	unit->m_y1 = 0.;
 
 	unit->m_y2 = 0.;
-	ClearUnitOutputs(unit, 1);
+	PUSH_LOOPVALS
+	BHiPass_next_kk(unit, 1);
+	POP_LOOPVALS
 }
 
 void BHiPass_next_aa(BHiPass *unit, int inNumSamples)
@@ -5069,7 +5258,9 @@ void BBandPass_Ctor(BBandPass* unit)
 	unit->m_y1 = 0.;
 
 	unit->m_y2 = 0.;
-	ClearUnitOutputs(unit, 1);
+	PUSH_LOOPVALS
+	BBandPass_next_kk(unit, 1);
+	POP_LOOPVALS
 }
 
 void BBandPass_next_aa(BBandPass *unit, int inNumSamples)
@@ -5256,7 +5447,9 @@ void BBandStop_Ctor(BBandStop* unit)
 	unit->m_y1 = 0.;
 
 	unit->m_y2 = 0.;
-	ClearUnitOutputs(unit, 1);
+	PUSH_LOOPVALS
+	BBandStop_next_kk(unit, 1);
+	POP_LOOPVALS
 }
 
 void BBandStop_next_aa(BBandStop *unit, int inNumSamples)
@@ -5445,7 +5638,9 @@ void BPeakEQ_Ctor(BPeakEQ* unit)
 
 	unit->m_y1 = 0.;
 	unit->m_y2 = 0.;
-	ClearUnitOutputs(unit, 1);
+	PUSH_LOOPVALS
+	BPeakEQ_next_kkk(unit, 1);
+	POP_LOOPVALS
 }
 
 void BPeakEQ_next_aaa(BPeakEQ *unit, int inNumSamples)
@@ -5644,7 +5839,9 @@ void BAllPass_Ctor(BAllPass* unit)
 	unit->m_y1 = 0.;
 
 	unit->m_y2 = 0.;
-	ClearUnitOutputs(unit, 1);
+	PUSH_LOOPVALS
+	BAllPass_next_kk(unit, 1);
+	POP_LOOPVALS
 }
 
 void BAllPass_next_aa(BAllPass *unit, int inNumSamples)
@@ -5839,7 +6036,9 @@ void BLowShelf_Ctor(BLowShelf* unit)
 	unit->m_y1 = 0.;
 
 	unit->m_y2 = 0.;
-	ClearUnitOutputs(unit, 1);
+	PUSH_LOOPVALS
+	BLowShelf_next_kkk(unit, 1);
+	POP_LOOPVALS
 }
 
 void BLowShelf_next_aaa(BLowShelf *unit, int inNumSamples)
@@ -6053,7 +6252,9 @@ void BHiShelf_Ctor(BHiShelf* unit)
 	unit->m_y1 = 0.;
 
 	unit->m_y2 = 0.;
-	ClearUnitOutputs(unit, 1);
+	PUSH_LOOPVALS
+	BHiShelf_next_kkk(unit, 1);
+	POP_LOOPVALS
 }
 
 void BHiShelf_next_aaa(BHiShelf *unit, int inNumSamples)
@@ -6235,6 +6436,7 @@ PluginLoad(Filter)
 	DefineSimpleUnit(LagUD);
 	DefineSimpleUnit(Lag2UD);
 	DefineSimpleUnit(Lag3UD);
+	DefineSimpleUnit(VarLag);
 	DefineSimpleUnit(OnePole);
 	DefineSimpleUnit(OneZero);
 	DefineSimpleUnit(TwoPole);

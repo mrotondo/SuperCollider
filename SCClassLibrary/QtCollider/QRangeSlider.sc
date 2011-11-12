@@ -17,6 +17,11 @@ QRangeSlider : QAbstractStepValue {
     }
   }
 
+  pixelStep {
+    // FIXME for now we are using step instead
+    ^this.step;
+  }
+
   orientation_ { arg aSymbol;
     this.setProperty( \orientation, QOrientation(aSymbol) );
   }
@@ -89,5 +94,12 @@ QRangeSlider : QAbstractStepValue {
 
   background_ { arg color;
     this.setProperty( \palette, this.palette.baseColor_(color) )
+  }
+
+  defaultGetDrag { ^Point(this.lo,this.hi); }
+  defaultCanReceiveDrag { ^(QView.currentDrag.class === Point); }
+  defaultReceiveDrag {
+    var pt = QView.currentDrag;
+    this.setSpanActive( pt.x, pt.y );
   }
 }

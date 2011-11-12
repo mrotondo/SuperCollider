@@ -1,4 +1,3 @@
-
 Exception {
 	classvar <>handling = false;
 	classvar <>debug = false;
@@ -16,6 +15,11 @@ Exception {
 	reportError {
 		this.errorString.postln;
 		this.dumpBackTrace;
+		this.adviceLink.postln;
+	}
+	adviceLink {
+		^("For advice: [http://supercollider.sf.net/wiki/index.php/%]"
+			.format(this.errorString.tr($ , $_).tr($\n, $_)));
 	}
 	isException { ^true }
 }
@@ -41,6 +45,7 @@ MethodError : Error {
 		receiver.dump;
 		this.errorPathString.post;
 		this.dumpBackTrace;
+		this.adviceLink.postln;
 	}
 }
 
@@ -95,6 +100,7 @@ DoesNotUnderstandError : MethodError {
 		args.dumpAll;
 		this.errorPathString.post;
 		this.dumpBackTrace;
+		this.adviceLink.postln;
 	}
 }
 
@@ -135,24 +141,32 @@ BinaryOpFailureError : DoesNotUnderstandError {
 	}
 }
 
-DeprecatedError : Error {
-	var <>receiver;
+DeprecatedError : MethodError {
 	var <>method, <>class, <>alternateMethod;
 
 	*new { arg receiver, method, alternateMethod, class;
-		^super.new(nil, receiver).method_(method).alternateMethod_(alternateMethod).class_(class)
+		^super.new(nil).receiver_(receiver).method_(method).class_(class).alternateMethod_(alternateMethod)
 	}
 	errorString {
+		var methodSignature = { arg m;
+			var c = m.ownerClass;
+			var str = c.name.asString;
+			if(c.isMetaClass)
+				{ str = str.drop( str.indexOf($_) + 1 ) ++ ":*" ++ m.name }
+				{ str = str ++ ":-" ++ m.name };
+			str;
+		};
 		var string;
-		string = "ERROR: Method '" ++ method.name ++ "' of class " ++ class.name ++ " is deprecated and will be removed.";
+		string = "WARNING: Method" + methodSignature.value(method)+ "is deprecated and will be removed.";
 		if(alternateMethod.notNil, {
-			string = string + "Use '" ++ alternateMethod.ownerClass ++ ":" ++ alternateMethod.name ++ "' instead.";
+			string = string + "Use" + methodSignature.value(alternateMethod) + "instead.";
 		});
 		^string;
 	}
 
 	reportError {
 		this.errorString.postln;
+		this.adviceLink.postln;
 	}
 
 	throw {
@@ -168,4 +182,3 @@ DeprecatedError : Error {
 
 	}
 }
-

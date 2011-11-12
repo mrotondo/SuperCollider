@@ -75,6 +75,7 @@
 			// since Swing is not in svn and can't be easily updated
 			// let's put this temporary hack/if-statement here
 			// rather than pollute everybody else's code with hacks/if-statements
+			font = font ?? { Font.default };
 			^Rect(0, 0, this.size * font.size * 0.52146, font.size * 1.25)
 			// width in Helvetica approx = string size * font size * 0.52146
 			// 0.52146 is average of all 32-127 ascii characters widths
@@ -89,23 +90,14 @@
 
 
 	findHelpFile {
-		^if(thisProcess.platform.hasFeature(\findHelpFile)){
-			// on osx, there's a primitve which does it nice and fast
-			thisProcess.platform.findHelpFile(this)
-		}{
-			// this is very fast, but not on first run since it needs a tree to be scanned+built
-			Help.findHelpFile(this)
-		}
-
+		^SCDoc.findHelpFile(this);
 	}
 
 	findHelpFileOrElse {
-		// this is very fast, but not on first run since it needs a tree to be scanned+built
-		^Help.findHelpFileOrElse(this)
+		this.findHelpFile;
 	}
 
 	openHelpFile {
-		(this.findHelpFile ? "Help/Help.html".standardizePath).openHTMLFile
+		HelpBrowser.openHelpFor(this);
 	}
 }
-

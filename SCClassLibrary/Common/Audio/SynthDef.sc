@@ -1,4 +1,3 @@
-
 SynthDef {
 	var <>name, <>func;
 
@@ -14,6 +13,7 @@ SynthDef {
 	// topo sort
 	var <>available;
 	var <>variants;
+	var <>widthFirstUGens;
 
 	var <>desc, <>metadata;
 
@@ -27,11 +27,8 @@ SynthDef {
 
 	*initClass {
 		synthDefDir = Platform.userAppSupportDir ++ "/synthdefs/";
-                // Ensure exists:
-		("mkdir"
-			+ Platform.case(\windows, {""}, {"-p"}) // -p option doesn't exist on win
-			+ synthDefDir.quote
-		).systemCmd;
+		// Ensure exists:
+		synthDefDir.mkdir;
 	}
 
 	*new { arg name, ugenGraphFunc, rates, prependArgs, variants, metadata;
@@ -41,9 +38,9 @@ SynthDef {
 	*prNew { arg name;
 		^super.new.name_(name.asString)
 	}
-	
+
 	storeArgs { ^[name.asSymbol, func] }
-	
+
 	build { arg ugenGraphFunc, rates, prependArgs;
 		protect {
 			this.initBuild;
@@ -386,16 +383,23 @@ SynthDef {
 	}
 
 	checkInputs {
-		var seenErr = false;
+		var firstErr;
 		children.do { arg ugen;
 			var err;
 			if ((err = ugen.checkInputs).notNil) {
-				seenErr = true;
+				if(firstErr.isNil){
+					firstErr = if(err.indexOf($:).isNil){err}{
+						err[..err.indexOf($:)-1]
+					};
+				};
 				(ugen.class.asString + err).postln;
 				ugen.dumpArgs;
 			};
 		};
-		if(seenErr) { Error("SynthDef" + this.name + "build failed").throw };
+		if(firstErr.notNil) {
+			("SynthDef" + this.name + "build failed").postln;
+			Error(firstErr).throw
+		};
 		^true
 	}
 
@@ -404,6 +408,7 @@ SynthDef {
 	// UGens do these
 	addUGen { arg ugen;
 		ugen.synthIndex = children.size;
+		ugen.widthFirstAntecedents = widthFirstUGens.copy;
 		children = children.add(ugen);
 	}
 	removeUGen { arg ugen;
@@ -466,6 +471,7 @@ SynthDef {
 		children.do { arg ugen;
 			ugen.antecedents = nil;
 			ugen.descendants = nil;
+			ugen.widthFirstAntecedents = nil;
 		};
 	}
 	topologicalSort {
@@ -496,12 +502,12 @@ SynthDef {
 			[ugen.dumpName, ugen.rate, inputs].postln;
 		};
 	}
-	
+
 	// make SynthDef available to all servers
-	
+
 	add { arg libname, completionMsg, keepDef = true;
 		var	servers, desc = this.asSynthDesc(libname ? \global, keepDef);
-		if(libname.isNil) { 
+		if(libname.isNil) {
 			servers = Server.allRunningServers
 		} {
 			servers = SynthDescLib.getLib(libname).servers
@@ -510,7 +516,7 @@ SynthDef {
 			each.value.sendMsg("/d_recv", this.asBytes, completionMsg.value(each))
 		}
 	}
-	
+
 	*removeAt { arg name, libname = \global;
 		var lib = SynthDescLib.getLib(libname);
 		lib.removeAt(name);
@@ -518,16 +524,16 @@ SynthDef {
 			each.value.sendMsg("/d_free", name)
 		};
 	}
-	
-	
+
+
 	// methods for special optimizations
-	
+
 	// only send to servers
 	send { arg server, completionMsg;
-	
+
 		var servers = (server ?? { Server.allRunningServers }).asArray;
 		servers.do { |each|
-			if(each.serverRunning.not) { 
+			if(each.serverRunning.not) {
 				"Server % not running, could not send SynthDef.".format(server.name).warn
 			};
 			if(metadata.trueAt(\shouldNotSend)) {
@@ -537,7 +543,7 @@ SynthDef {
 			}
 		}
 	}
-	
+
 	// send to server and write file
 	load { arg server, completionMsg, dir(synthDefDir);
 		server = server ? Server.default;
@@ -550,7 +556,7 @@ SynthDef {
 			server.sendMsg("/d_load", dir ++ name ++ ".scsyndef", completionMsg)
 		};
 	}
-	
+
 	// write to file and make synth description
 	store { arg libname=\global, dir(synthDefDir), completionMsg, mdPlugin;
 		var lib = SynthDescLib.getLib(libname);
@@ -580,7 +586,7 @@ SynthDef {
 			};
 		};
 	}
-	
+
 	asSynthDesc { |libname=\global, keepDef = true|
 		var	lib, stream = CollStream(this.asBytes);
 		libname ?? { libname = \global };
@@ -591,11 +597,11 @@ SynthDef {
 		if(metadata.notNil) { desc.metadata = metadata };
 		^desc
 	}
-	
+
 	// this method warns and does not halt
 	// because loading existing def from disk is a viable alternative
 	// to get the synthdef to the server
-	
+
 	loadReconstructed { arg server, completionMsg;
 			"SynthDef (%) was reconstructed from a .scsyndef file, "
 			"it does not contain all the required structure to send back to the server."
@@ -606,9 +612,9 @@ SynthDef {
 			} {
 				MethodError("Server is remote, cannot load from disk.", this).throw;
 			};
-		
+
 	}
-	
+
 	// this method needs a reconsideration
 	storeOnce { arg libname=\global, dir(synthDefDir), completionMsg, mdPlugin;
 		var	path = dir ++ name ++ ".scsyndef", lib;
@@ -621,8 +627,8 @@ SynthDef {
 			lib.read(path);
 		};
 	}
-	
-	
+
+
 	memStore { arg libname = \global, completionMsg, keepDef = true;
 		this.deprecated(thisMethod, this.class.findRespondingMethodFor(\add));
 		this.add(libname, completionMsg, keepDef);
@@ -637,5 +643,5 @@ SynthDef {
 		this.send(target.server, msg);
 		^synth
 	}
-	
+
 }

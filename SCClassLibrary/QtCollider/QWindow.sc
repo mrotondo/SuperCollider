@@ -1,18 +1,15 @@
-QTopScrollWidget : QObject {
+QTopScrollWidget : QScrollCanvas {
   var <>win;
-  *new { ^super.new("QcScrollWidget") }
-  doDrawFunc { win.drawHook.value(win); }
+  doDrawFunc { win.drawFunc.value(win); }
 }
 
 QScrollTopView : QScrollView {
   var >window;
 
-  *qtClass {^"QcWindow"}
+  *qtClass {^'QcScrollWindow'}
 
-  // NOTE: Since the scroll arg is true, this should actually
-  // instantiate a QcScrollArea
   *new { arg win, name, bounds, resizable, border;
-    ^super.newCustom([name, bounds, resizable, border, true /*scroll*/])
+    ^super.newCustom([name, bounds, resizable, border])
           .initQScrollTopView(win);
   }
 
@@ -47,12 +44,10 @@ QTopView : QView {
   var >window;
   var <background;
 
-  *qtClass {^"QcWindow"}
+  *qtClass {^'QcWindow'}
 
-  // NOTE: Since the scroll arg is false, this should actually
-  // instantiate a QcCustomPainted
   *new { arg win, name, bounds, resizable, border;
-    ^super.newCustom([name, bounds, resizable, border, false /*scroll*/])
+    ^super.newCustom([name, bounds, resizable, border])
           .initQTopView(win);
   }
 
@@ -79,19 +74,18 @@ QTopView : QView {
 
   findWindow { ^window; }
 
-  doDrawFunc { window.drawHook.value(window) }
+  doDrawFunc { window.drawFunc.value(window) }
 }
 
 QWindow
 {
   classvar <allWindows, <>initAction;
 
-  var resizable, <drawHook, <onClose;
+  var resizable, <drawFunc, <onClose;
   var <view;
 
   //TODO
-  var <>acceptsClickThrough=false, <>acceptsMouseOver=false,
-      <>alwaysOnTop=false;
+  var <>acceptsClickThrough=false, <>acceptsMouseOver=false;
   var <currentSheet;
 
   *initClass {
@@ -102,12 +96,16 @@ QWindow
     ^this.prScreenBounds( Rect.new );
   }
 
+  *availableBounds {
+    ^this.prAvailableBounds( Rect() );
+  }
+
   *closeAll {
     allWindows.copy.do { |win| win.close };
   }
 
   *new { arg name,
-         bounds = Rect( 128, 64, 400, 400 ),
+         bounds,
          resizable = true,
          border = true,
          server,
@@ -115,8 +113,12 @@ QWindow
 
     //NOTE server is only for compatibility with SwingOSC
 
-    var b = QWindow.flipY( bounds.asRect );
-    ^super.new.initQWindow( name, b, resizable, border, scroll );
+    if( bounds.isNil ) {
+      bounds = Rect(0,0,400,400).center_( QWindow.availableBounds.center );
+    }{
+      bounds = QWindow.flipY( bounds.asRect );
+    };
+    ^super.new.initQWindow( name, bounds, resizable, border, scroll );
   }
 
   //------------------------ QWindow specific  -----------------------//
@@ -144,10 +146,7 @@ QWindow
   bounds_ { arg aRect;
     var r = QWindow.flipY( aRect.asRect );
     view.setProperty( \geometry, r );
-    if( resizable.not ) {
-      view.setProperty( \minimumSize, r.asSize );
-      view.setProperty( \maximumSize, r.asSize );
-    }
+    if( resizable.not ) { view.fixedSize = r.size }
   }
 
   bounds {
@@ -164,9 +163,9 @@ QWindow
 
   background_ { arg aColor; view.background = aColor; }
 
-  drawHook_ { arg aFunction;
+  drawFunc_ { arg aFunction;
     view.drawingEnabled = aFunction.notNil;
-    drawHook = aFunction;
+    drawFunc = aFunction;
   }
 
   setTopLeftBounds{ arg rect, menuSpacer=45;
@@ -184,21 +183,32 @@ QWindow
 
   //------------------- simply redirected to QView ---------------------//
 
-  alpha_ { var value; view.alpha_(value); }
+  sizeHint { ^view.sizeHint }
+  minSizeHint { ^view.minSizeHint }
+  alpha_ { arg value; view.alpha_(value); }
   addFlowLayout { arg margin, gap; ^view.addFlowLayout( margin, gap ); }
   close { view.close; }
+  isClosed { ^view.isClosed; }
+  visible { ^view.visible; }
+  visible_ { arg boolean; view.visible_(boolean); }
   front { view.front; }
   fullScreen { view.fullScreen; }
   endFullScreen { view.endFullScreen; }
-  isClosed { ^view.isClosed; }
   minimize { view.minimize; }
+  unminimize { view.unminimize; }
   name { ^view.name; }
   name_ { arg string; view.name_(string); }
   refresh { view.refresh; }
   userCanClose { ^view.userCanClose; }
   userCanClose_ { arg boolean; view.userCanClose_( boolean ); }
+  alwaysOnTop { ^view.alwaysOnTop; }
+  alwaysOnTop_ { arg boolean; view.alwaysOnTop_(boolean); }
   layout { ^view.layout; }
   layout_ { arg layout; view.layout_(layout); }
+  toFrontAction_ { arg action; view.toFrontAction_(action) }
+  toFrontAction { ^view.toFrontAction }
+  endFrontAction_ { arg action; view.endFrontAction_(action) }
+  endFrontAction { ^view.endFrontAction }
 
   // ---------------------- private ------------------------------------
 
@@ -209,6 +219,11 @@ QWindow
 
   *prScreenBounds { arg return;
     _QWindow_ScreenBounds
+    ^this.primitiveFailed
+  }
+
+  *prAvailableBounds { arg return;
+    _QWindow_AvailableGeometry
     ^this.primitiveFailed
   }
 

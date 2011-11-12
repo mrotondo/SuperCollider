@@ -31,6 +31,8 @@
 #include <QPalette>
 #include <QWidget>
 
+#include <qmath.h>
+
 using namespace QtCollider;
 
 static QPalette::ColorRole paletteColorRoles[] = {
@@ -72,6 +74,16 @@ int Slot::setPoint( PyrSlot *slot, const QPointF &pt )
   return errNone;
 }
 
+void Slot::setSize( PyrSlot *slot, const QSizeF &sz )
+{
+  PyrObject *obj = instantiateObject( gMainVMGlobals->gc, class_Size, 0, true, true );
+  SetObject( slot, obj );
+
+  PyrSlot *slots = obj->slots;
+  SetFloat( slots+0, sz.width() );
+  SetFloat( slots+1, sz.height() );
+}
+
 void Slot::setString( PyrSlot *slot, const QString& arg )
 {
   PyrString *str = newPyrString( gMainVMGlobals->gc,
@@ -104,6 +116,27 @@ int Slot::setPalette( PyrSlot *slot, const QPalette &plt )
   }
 
   return errNone;
+}
+
+void Slot::setQObject( PyrSlot *s, QObject *o )
+{
+  if( !o ) {
+    SetNil(s);
+    return;
+  }
+
+  QObjectProxy *proxy = QObjectProxy::fromObject(o);
+  if( proxy && proxy->scObject() )
+    SetObject( s, proxy->scObject() );
+  else
+    SetNil( s );
+}
+
+void Slot::setTreeWidgetItem( PyrSlot *s, const SafePtr<QcTreeWidget::Item> & itemPtr )
+{
+  PyrObject *obj = instantiateObject( gMainVMGlobals->gc, class_QTreeViewItem, 0, true, true );
+  QcTreeWidget::Item::initialize( gMainVMGlobals, obj, itemPtr );
+  SetObject( s, obj );
 }
 
 void Slot::setVariantList( PyrSlot *slot, const VariantList& varList )
@@ -140,6 +173,10 @@ int Slot::setVariant( PyrSlot *slot, const QVariant &val )
     case QMetaType::QPoint:
     case QMetaType::QPointF:
         return Slot::setPoint( slot, val.toPointF() );
+    case QMetaType::QSize:
+    case QMetaType::QSizeF:
+        Slot::setSize( slot, val.toSizeF() );
+        return errNone;
     case QMetaType::QRect:
     case QMetaType::QRectF:
         return Slot::setRect( slot, val.toRectF() );
@@ -152,17 +189,29 @@ int Slot::setVariant( PyrSlot *slot, const QVariant &val )
         return Slot::setPalette( slot, val.value<QPalette>() );
     case QMetaType::Float:
     case QMetaType::Double:
-        SetFloat( slot, val.value<float>() );
+        SetFloat( slot, val.value<double>() );
         return errNone;
     case QMetaType::Int:
         SetInt( slot, val.toInt() );
+        return errNone;
+    case QMetaType::QObjectStar:
+        Slot::setQObject( slot, val.value<QObject*>() );
+        return errNone;
+    case QMetaType::QWidgetStar:
+        Slot::setQObject( slot, val.value<QWidget*>() );
         return errNone;
     case QMetaType::Void:
         SetNil( slot );
         return errNone;
     default:
-        if( type == qMetaTypeId<VariantList>() ) {
+        if( type == qMetaTypeId<PyrObject*>() ) {
+          SetObject( slot, val.value<PyrObject*>() );
+        }
+        else if( type == qMetaTypeId<VariantList>() ) {
           Slot::setVariantList( slot, val.value<VariantList>() );
+        }
+        else if( type == qMetaTypeId<QcTreeWidget::ItemPtr>() ) {
+          Slot::setTreeWidgetItem( slot, val.value< QtCollider::SafePtr<QcTreeWidget::Item> >() );
         }
         else {
           qcErrorMsg( "the QVariant could not be interpreted!" );
@@ -189,6 +238,13 @@ float Slot::toFloat( PyrSlot *slot )
   float f;
   if( slotFloatVal( slot, &f ) ) return 0.f;
   return f;
+}
+
+double Slot::toDouble( PyrSlot *slot )
+{
+  double d;
+  if( slotDoubleVal( slot, &d ) ) return 0.0;
+  return d;
 }
 
 QString Slot::toString( PyrSlot *slot )
@@ -276,13 +332,28 @@ QFont Slot::toFont( PyrSlot *slot )
   PyrSlot *slots = slotRawObject(slot)->slots;
 
   QString family = Slot::toString( slots+0 );
-  //NOTE we allow empty family field;
-  int size = IsInt( slots+1 ) ? Slot::toInt( slots+1 ) : -1;
+  float fSize = Slot::toFloat( slots+1 );
   bool bold = IsTrue( slots+2 );
   bool italic = IsTrue( slots+3 );
+  bool isPtSize = IsTrue( slots+4 );
 
-  QFont f( family, size, bold ? QFont::Bold : QFont::Normal, italic );
-  f.setPixelSize( size );
+  QFont f;
+
+  if( !family.isEmpty() ) f.setFamily( family );
+
+  if( fSize > 0.f ) {
+    if( isPtSize ) {
+      f.setPointSizeF( fSize );
+    }
+    else {
+      int pixSize = ( fSize > 1.f ? qRound(fSize) : 1 );
+      f.setPixelSize( pixSize );
+    }
+  }
+
+  f.setBold( bold );
+
+  f.setItalic( italic );
 
   return f;
 }
@@ -337,6 +408,19 @@ QObjectProxy* Slot::toObjectProxy( PyrSlot *slot )
   return proxy;
 }
 
+QcTreeWidget::ItemPtr Slot::toTreeWidgetItem( PyrSlot *slot )
+{
+  if( !isKindOfSlot( slot, class_QTreeViewItem ) ) return QcTreeWidget::ItemPtr();
+  PyrSlot *ptrSlot = slotRawObject(slot)->slots+0;
+  if( IsPtr( ptrSlot ) ) {
+    QcTreeWidget::ItemPtr *safePtr = static_cast<QcTreeWidget::ItemPtr*>( slotRawPtr(ptrSlot) );
+    return *safePtr;
+  }
+  else {
+    return QcTreeWidget::ItemPtr();
+  }
+}
+
 QVariant Slot::toVariant( PyrSlot *slot )
 {
   QObjectProxy *proxy;
@@ -382,13 +466,16 @@ QVariant Slot::toVariant( PyrSlot *slot )
       else if( isKindOfSlot( slot, class_Array ) || isKindOfSlot( slot, class_SymbolArray ) ) {
         return QVariant::fromValue<VariantList>( toVariantList(slot) );
       }
+      else if( isKindOfSlot( slot, class_QTreeViewItem ) ) {
+        return QVariant::fromValue<QcTreeWidget::ItemPtr>( toTreeWidgetItem(slot) );
+      }
       else {
         qcErrorMsg("Could not interpret slot!");
         return QVariant();
       }
     }
     default:
-      return QVariant( toFloat( slot ) );
+      return QVariant( toDouble( slot ) );
   }
 }
 
@@ -456,6 +543,10 @@ void QtCollider::Variant::setData( PyrSlot *slot )
           _ptr = new QObjectProxy*( proxy );
         }
       }
+      else if( isKindOfSlot( slot, class_QTreeViewItem ) ) {
+        _type = qMetaTypeId<QcTreeWidget::ItemPtr>();
+        _ptr = new QcTreeWidget::ItemPtr( toTreeWidgetItem(slot) );
+      }
       else {
         qcErrorMsg("Could not interpret slot!");
         _type = QMetaType::Void;
@@ -464,7 +555,7 @@ void QtCollider::Variant::setData( PyrSlot *slot )
       break;
     }
     default :
-      _type = QMetaType::Float;
-      _ptr = new float( toFloat(slot) );
+      _type = QMetaType::Double;
+      _ptr = new double( toDouble(slot) );
   }
 }

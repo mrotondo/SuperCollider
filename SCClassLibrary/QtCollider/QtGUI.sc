@@ -8,6 +8,11 @@ QtGUI {
 
   *stop { }
 
+  *debugLevel {
+    _QtGUI_DebugLevel
+    ^this.primitiveFailed
+  }
+
   *debugLevel_ { arg level;
     _QtGUI_SetDebugLevel
     ^this.primitiveFailed;
@@ -24,6 +29,7 @@ QtGUI {
 
   *staticText { ^QStaticText }
   *button { ^QButton; }
+  *checkBox { ^QCheckBox; }
   *textField { ^QTextField }
   *numberBox { ^QNumberBox }
   *slider { ^QSlider }
@@ -33,10 +39,12 @@ QtGUI {
   *tabletSlider2D { ^this.notImplemented( "TabletSlider2D"); }
   *knob { ^QKnob; }
   *listView { ^QListView }
+  *treeView { ^QTreeView }
   *popUpMenu { ^QPopUpMenu }
   *textView { ^QTextView; }
-  *freqScope { ^QFreqScopeWindow }
-  *freqScopeView { ^QFreqScope }
+
+  *freqScope     { ^PlusFreqScopeWindow }
+  *freqScopeView { ^PlusFreqScope }
   *scopeView { ^QScope }
   *stethoscope { ^QStethoscope }
   *soundFileView { ^QSoundFileView }
@@ -44,15 +52,13 @@ QtGUI {
   *tabletView { ^this.notImplemented( "TabletView"); }
   *movieView { ^this.notImplemented( "MovieView"); }
   *levelIndicator { ^QLevelIndicator }
+  *webView { ^QWebView }
 
   *userView { ^QUserView }
 
-  *pen { ^QPen; }
-  *font { ^QFont }
-
-  *dragSource { ^this.notImplemented( "DragSource"); }
-  *dragSink { ^this.notImplemented( "DragSink"); }
-  *dragBoth { ^this.notImplemented( "DragBoth"); }
+  *dragSource { ^QDragSource; }
+  *dragSink { ^QDragSink; }
+  *dragBoth { ^QDragBoth; }
 
   *dialog { ^QDialog }
 
@@ -63,12 +69,27 @@ QtGUI {
   *ezNumber { ^EZNumber}
   *ezRanger { ^EZRanger }
 
+  *pen { ^QPen }
+
+  *font { ^QFont }
+  *image { ^this.notImplemented( "Image" ) }
+
   *notImplemented { arg class;
     ("QtGUI: " ++ class.asString ++ " is not implemented yet").postln;
     ^nil;
   }
 
   //////////////////////////////////////////////////////////////////////
+
+  *availableStyles {
+    _Qt_AvailableStyles
+    ^this.primitiveFailed;
+  }
+
+  *style_ { arg styleName;
+    _Qt_SetStyle
+    ^this.primitiveFailed;
+  }
 
   *stringBounds { arg aString, aFont;
     var bounds = this.prStringBounds( aString, aFont, Rect.new );
@@ -86,6 +107,20 @@ QtGUI {
     ^this.primitiveFailed;
   }
 
+  *focusView {
+    _Qt_FocusWidget
+    ^this.primitiveFailed;
+  }
+
+  *selectedText {
+    var view = this.focusView;
+    if( view.notNil ) {
+      if( view.respondsTo(\selectedText) ) { ^view.selectedText };
+      if( view.respondsTo(\selectedString) ) { ^view.selectedString };
+    };
+    ^"";
+  }
+
   // private ///////////////////////////////////////////////////////////
 
   *prPalette { arg ret;
@@ -97,33 +132,4 @@ QtGUI {
     _Qt_StringBounds
     ^this.primitiveFailed
   }
-}
-
-Size {
-  var <width, <height;
-
-  *new { arg width=0.0, height=0.0;
-    ^super.new.initSize( width, height );
-  }
-
-  initSize{ arg w, h;
-    width = w;
-    height = h;
-  }
-
-  asRect { ^Rect(0,0,width,height); }
-
-  asPoint { ^Point(width,height); }
-
-  asString {
-    ^( "Size(" ++ width ++ ", " ++ height ++ ")" );
-  }
-}
-
-+ Rect {
-  asSize { ^Size( width, height ); }
-}
-
-+ Point {
-  asSize { ^Size( x, y ); }
 }

@@ -217,8 +217,8 @@ Symbol {
 
 	archiveAsCompileString { ^true }
 
-	kr { | val, lag |
-		^NamedControl.kr(this, val, lag)
+	kr { | val, lag, fixedLag = false |
+		^NamedControl.kr(this, val, lag, fixedLag)
 	}
 
 	ir { | val |
@@ -231,5 +231,10 @@ Symbol {
 
 	ar { | val, lag |
 		^NamedControl.ar(this, val, lag)
+	}
+
+	matchOSCAddressPattern { arg addressPattern;
+		_Symbol_matchOSCPattern
+		^this.primitiveFailed
 	}
 }

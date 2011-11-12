@@ -1,7 +1,21 @@
-find_package(FFTW3f)
+
+if (FFT_GREEN)
+        add_definitions("-DSC_FFT_GREEN")
+else()
+        find_package(FFTW3f)
+endif()
+
+if(SC_QT)
+	set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}  -DQC_DEBUG")
+	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}  -DQC_DEBUG")
+endif()
 
 include_directories(${CMAKE_SOURCE_DIR}/include/common
                     ${CMAKE_SOURCE_DIR}/include/lang
+                    ${CMAKE_SOURCE_DIR}/external_libraries/boost_lockfree
+                    ${CMAKE_SOURCE_DIR}/external_libraries/boost
+                    ${CMAKE_SOURCE_DIR}/external_libraries/threadpool
+                    ${CMAKE_SOURCE_DIR}/external_libraries/yaml-cpp-0.2.6/include
                     ${CMAKE_SOURCE_DIR}/include/plugin_interface
                     LangSource/Bison)
 
@@ -78,15 +92,21 @@ set(sclang_sources
 	${CMAKE_SOURCE_DIR}/common/SC_StringParser.cpp
 	${CMAKE_SOURCE_DIR}/common/scsynthsend.cpp
 	${CMAKE_SOURCE_DIR}/common/sc_popen.cpp
-	${CMAKE_SOURCE_DIR}/common/strtod.c
 )
 
+file(GLOB boost_system_sources ../external_libraries/boost/libs/system/src/*cpp)
+file(GLOB boost_fs_sources ../external_libraries/boost/libs/filesystem/v3/src/*cpp)
+list(APPEND sclang_sources ${boost_fs_sources} ${boost_system_sources})
+
+file(GLOB yaml_sources ../external_libraries/yaml-cpp-0.2.6/src/*cpp)
+list(APPEND sclang_sources ${yaml_sources})
+
 if(NOT WIN32)
-    list(APPEND sclang_sources LangPrimSource/PyrSerialPrim.cpp)
+	list(APPEND sclang_sources LangPrimSource/PyrSerialPrim.cpp)
 endif()
 
 if(WIN32)
-    list(APPEND sclang_sources ${CMAKE_SOURCE_DIR}/common/SC_Win32Utils.cpp)
+	list(APPEND sclang_sources ${CMAKE_SOURCE_DIR}/common/SC_Win32Utils.cpp)
 endif()
 
 if(WIN32)
@@ -136,15 +156,9 @@ if(UNIX)
 else(UNIX)
 endif(UNIX)
 
-if (SC_QT)
-	add_definitions(-DSC_QT)
-	include_directories(${CMAKE_SOURCE_DIR}/include/QtCollider)
-endif (SC_QT)
-
 if(WIN32)
-    include_directories (../platform/windows/compat_stuff)
-
-    list(APPEND sclang_sources ../platform/windows/compat_stuff/getopt.c)
+	include_directories (../platform/windows/compat_stuff)
+	list(APPEND sclang_sources ../platform/windows/compat_stuff/getopt.c)
 endif()
 
 if (SC_WII OR APPLE)
@@ -155,6 +169,9 @@ if (SC_WII OR APPLE)
 		if (BLUETOOTH_FOUND AND CWIID_FOUND)
 			add_definitions(-DHAVE_WII)
 			include_directories(${CWIID_INCLUDE_DIRS} ${BLUETOOTH_INCLUDE_DIRS})
+			message(STATUS "Compiling with WiiMote support")
+		else()
+			message(SEND_ERROR "Cannot find libcwiid or libbluetooth")
 		endif()
 	elseif(APPLE)
 		add_definitions(-DHAVE_WII)
@@ -163,7 +180,20 @@ if (SC_WII OR APPLE)
 	endif()
 endif()
 
-if(FINAL_BUILD)
+if (SC_QT)
+	find_package (Qt4 4.5)
+	include(${QT_USE_FILE})
+
+	add_definitions(-DSC_QT -DQT_NO_KEYWORDS)
+	include_directories(${CMAKE_SOURCE_DIR}/include/QtCollider)
+
+	qt4_wrap_cpp( QC_LANG_CLIENT_MOC_SRCS ../QtCollider/LanguageClient.h )
+
+	list(APPEND sclang_sources ../QtCollider/LanguageClient.cpp ${QC_LANG_CLIENT_MOC_SRCS})
+endif ()
+
+
+if(0 AND FINAL_BUILD) # sclang final-builds are broken
 	CREATE_FINAL_FILE(libsclang_final.cpp ${sclang_sources})
 	add_library(libsclang SHARED libsclang_final.cpp ${sclang_parser_source})
 else()
@@ -191,9 +221,10 @@ else()
 		)
 endif()
 
+
 if (SC_QT)
-	target_link_libraries(libsclang QcLangClient QtCollider)
-endif (SC_QT)
+    target_link_libraries(libsclang QtCollider )
+endif()
 
 set_property(TARGET libsclang
 	PROPERTY OUTPUT_NAME sclang)
@@ -220,7 +251,7 @@ endif()
 if (APPLE)
 	target_link_libraries(libsclang "-framework Carbon")
 	target_link_libraries(libsclang "-framework CoreAudio")
-	target_link_libraries(libsclang "-framework CoreMidi")
+	target_link_libraries(libsclang "-framework CoreMIDI")
 	target_link_libraries(libsclang "-framework IOKit")
 	target_link_libraries(libsclang "-framework CoreServices")
 endif()
@@ -253,10 +284,10 @@ if (GC_SANITYCHECK)
 	add_definitions(-DGC_SANITYCHECK)
 endif()
 
-target_link_libraries(libsclang ${PTHREADS_LIBRARY})
+target_link_libraries(libsclang ${PTHREADS_LIBRARY} supercollider_boost_thread)
 
 add_executable(sclang LangSource/cmdLineFuncs.cpp)
-target_link_libraries(sclang libsclang)
+target_link_libraries(sclang libsclang boost_thread)
 
 set_property(TARGET sclang
 	APPEND
@@ -267,28 +298,24 @@ if(LTO)
                  APPEND PROPERTY COMPILE_FLAGS "-flto -flto-report")
 
     set_property(TARGET sclang libsclang
-                 APPEND PROPERTY LINK_FLAGS "-flto -flto-report")
+                 APPEND PROPERTY LINK_FLAGS "-flto -flto-report -fwhole-program")
 endif()
 
 if(APPLE)
 	# determines the app name and app install location (scappbundlename, scappdir):
 	include (${CMAKE_SOURCE_DIR}/cmake_modules/MacAppFolder.cmake)
 
-	install(TARGETS libsclang
+	install(TARGETS libsclang sclang
 			DESTINATION "${scappauxresourcesdir}"
-			PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE OWNER_WRITE
+			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
 			COMPONENT app)
-
-	install(TARGETS sclang
-			RUNTIME DESTINATION "${scappauxresourcesdir}"
-			PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE OWNER_WRITE
-			COMPONENT app)
-else()
-	install(TARGETS libsclang
-			DESTINATION "lib"
+elseif(WIN32)
+	install(TARGETS libsclang sclang
+			DESTINATION "SuperCollider"
 			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
-
-	install(TARGETS sclang
-			DESTINATION "bin"
+else()
+	install(TARGETS libsclang sclang
+			LIBRARY DESTINATION "lib"
+			RUNTIME DESTINATION "bin"
 			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 endif()

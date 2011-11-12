@@ -1,12 +1,12 @@
 QTextView : QAbstractScroll {
   var <stringColor, <font, <editable=true;
 
-  /*TODO*/ var <enterInterpretsSelection;
-
   *qtClass { ^"QcTextEdit" }
 
-  enterInterpretsSelection_ {
-    this.nonimpl( "enterInterpretsSelection" );
+  enterInterpretsSelection { ^this.getProperty( \enterInterpretsSelection ); }
+
+  enterInterpretsSelection_ { arg bool;
+    this.setProperty( \enterInterpretsSelection, bool );
   }
 
   editable_ { arg aBool;
@@ -40,9 +40,9 @@ QTextView : QAbstractScroll {
     this.setProperty( \textColor, aColor );
   }
 
-  selectedString {
-    ^this.getProperty( \selectedString );
-  }
+  selectedString { ^this.getProperty( \selectedString ); }
+
+  selectedString_ { arg string; this.setProperty( \selectedString, string ); }
 
   selectionStart {
     ^this.getProperty( \selectionStart );
@@ -50,6 +50,10 @@ QTextView : QAbstractScroll {
 
   selectionSize {
     ^this.getProperty( \selectionSize );
+  }
+
+  select { arg start, size;
+    this.invokeMethod( \select, [start, size] );
   }
 
   setStringColor { arg aColor, intStart, intSize;
@@ -64,7 +68,22 @@ QTextView : QAbstractScroll {
     this.setProperty( \rangeText, [aString,intStart,intSize] );
   }
 
+  tabWidth { ^this.getProperty( \tabStopWidth ); }
+
+  tabWidth_ { arg pixels; this.setProperty( \tabStopWidth, pixels ); }
+
   syntaxColorize {
     this.nonimpl( "syntaxColorize" );
+  }
+
+  defaultGetDrag {
+    var text = this.selectedString;
+    if( text.size < 1 ) { ^nil };
+    if( text.size > 150 ) {
+      this.dragLabel = text.copyRange(0,149) ++ "...";
+    }{
+      this.dragLabel = text;
+    }
+    ^text;
   }
 }

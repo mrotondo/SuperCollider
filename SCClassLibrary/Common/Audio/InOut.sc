@@ -1,4 +1,3 @@
-
 ControlName
 {
 	var <>name, <>index, <>rate, <>defaultValue, <>argNum, <>lag;
@@ -101,7 +100,13 @@ LagControl : Control {
 		var outputs;
 
 		values = values.asArray;
-		lags = lags.asArray;
+
+		if (lags.isNumber) {
+			lags = lags ! values.size
+		} {
+			lags = lags.asArray;
+		};
+
 		if (values.size != lags.size, {
 			"LagControl values.size != lags.size".error;
 			^nil
@@ -210,11 +215,11 @@ AbstractOut : UGen {
 
  	*isOutputUGen { ^true }
 	*numFixedArgs { ^this.subclassResponsibility(thisMethod) }
-	
+
  	numAudioChannels {
  		^inputs.size - this.class.numFixedArgs
  	}
- 	
+
  	writesToBus { ^this.subclassResponsibility(thisMethod) }
 }
 
@@ -296,4 +301,3 @@ SharedIn : AbstractIn {
 		^this.initOutputs(numChannels, rate)
 	}
 }
-

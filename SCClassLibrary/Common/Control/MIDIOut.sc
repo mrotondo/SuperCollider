@@ -1,4 +1,3 @@
-
 MIDIEndPoint {
 	var <>device, <>name, <>uid;
 	*new{ arg device, name, uid;
@@ -120,8 +119,20 @@ MIDIIn {
 	<> noteOnList, <> noteOffList, <> polyList,
 	<> controlList, <> programList,
 	<> touchList, <> bendList;
-
-
+	
+	// safer than global setters
+	*addFuncTo { |what, func|
+		this.perform(what.asSetter, this.perform(what).addFunc(func))
+	}
+	
+	*removeFuncFrom { |what, func|
+		this.perform(what.asSetter, this.perform(what).removeFunc(func))
+	}
+	
+	*replaceFuncTo { |what, func, newFunc|
+		this.perform(what.asSetter, this.perform(what).replaceFunc(func, newFunc))
+	}
+	
 	*waitNoteOn { arg port, chan, note, veloc;
 		var event;
 		event = MIDIEvent(\noteOn, port, chan, note, veloc, thisThread);

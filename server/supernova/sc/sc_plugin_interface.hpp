@@ -23,6 +23,7 @@
 
 #include "../server/audio_bus_manager.hpp"
 #include "../server/node_types.hpp"
+#include "../server/synth.hpp"
 #include "../server/memory_pool.hpp"
 
 #include "SC_InterfaceTable.h"
@@ -47,6 +48,12 @@ public:
         pause_nodes.push_back(node);
     }
 
+    void add_resume_node(server_node * node)
+    {
+        spin_lock::scoped_lock lock(cmd_lock);
+        resume_nodes.push_back(node);
+    }
+
     void add_done_node(server_node * node)
     {
         spin_lock::scoped_lock lock(cmd_lock);
@@ -69,7 +76,7 @@ public:
 
 protected:
     typedef rt_pool_allocator<int> Alloc;
-    std::vector<server_node*, Alloc> done_nodes, pause_nodes;
+    std::vector<server_node*, Alloc> done_nodes, pause_nodes, resume_nodes;
     std::vector<abstract_group*, Alloc> freeAll_nodes, freeDeep_nodes;
 
 private:
@@ -81,7 +88,8 @@ class sc_plugin_interface:
     public sc_done_action_handler
 {
 public:
-    void initialize(void);
+    void initialize(class server_arguments const & args);
+    void reset_sampling_rate(int sr);
 
     sc_plugin_interface(void):
         synths_to_initialize(false)
@@ -216,6 +224,7 @@ public:
     {
         synths_to_initialize = true;
         uninitialized_synths.push_back(synth);
+        synth->add_ref();
     }
 
 private:

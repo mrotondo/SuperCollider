@@ -19,7 +19,9 @@ else()
 endif()
 
 
-if (APPLE)
+if (NO_AVAHI)
+
+elseif (APPLE)
 	add_definitions(-DUSE_RENDEZVOUS=1)
 else()
 	find_package(Avahi)
@@ -96,7 +98,7 @@ if(WIN32)
 endif()
 
 if (FFT_GREEN)
-	list(APPEND scsynth_sources ../common/fftlib.c)
+	list(APPEND scsynth_sources ../../common/fftlib.c)
 endif()
 
 if (FFTW3F_FOUND)
@@ -110,7 +112,7 @@ include_directories(${CMAKE_SOURCE_DIR}/include/common
 
 set_property(DIRECTORY
              APPEND
-             PROPERTY COMPILE_DEFINITIONS SC_MEMORY_ALIGNMENT=16)
+             PROPERTY COMPILE_DEFINITIONS SC_MEMORY_ALIGNMENT=32)
 
 if (AUDIOAPI STREQUAL jack)
 	list(APPEND scsynth_sources SC_Jack.cpp)
@@ -133,6 +135,11 @@ endif()
 set_property(TARGET libscsynth
 	APPEND
 	PROPERTY COMPILE_DEFINITIONS BUILDING_SUPERCOLLIDER)
+
+find_library(DL NAMES dl)
+if (DL)
+    target_link_libraries(libscsynth ${DL})
+endif()
 
 if(AVAHI_FOUND)
 	add_definitions("-DHAVE_AVAHI=1")
@@ -191,7 +198,7 @@ if(LTO)
                  APPEND PROPERTY COMPILE_FLAGS "-flto -flto-report")
 
     set_property(TARGET scsynth libscsynth
-                 APPEND PROPERTY LINK_FLAGS "-flto -flto-report")
+                 APPEND PROPERTY LINK_FLAGS "-flto -flto-report -fwhole-program")
 endif()
 
 #TODO allow apple users to install to fhs-ish path if INSTALL_FHS option is enabled
@@ -200,21 +207,18 @@ if(APPLE)
 	# determines the app name and app install location (scappbundlename, scappdir):
 	include (${CMAKE_SOURCE_DIR}/cmake_modules/MacAppFolder.cmake)
 
-	install(TARGETS libscsynth
+	install(TARGETS libscsynth scsynth
 			DESTINATION ${scappauxresourcesdir}
-			PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE OWNER_WRITE
-			COMPONENT app)
-
-	install(TARGETS scsynth
 			RUNTIME DESTINATION ${scappauxresourcesdir}
 			PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE OWNER_WRITE
 			COMPONENT app)
-else()
-	install(TARGETS libscsynth
-			DESTINATION "lib"
+elseif(WIN32)
+	install(TARGETS libscsynth scsynth
+			DESTINATION "SuperCollider"
 			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
-
-	install(TARGETS scsynth
+else()
+	install(TARGETS libscsynth scsynth
+			LIBRARY DESTINATION "lib"
 			RUNTIME DESTINATION "bin"
 			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 endif()

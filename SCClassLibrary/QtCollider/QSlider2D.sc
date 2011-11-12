@@ -7,6 +7,16 @@ QSlider2D : QAbstractStepValue {
     ^me;
   }
 
+  pixelStepX {
+    // FIXME for now we are using step instead
+    ^this.step;
+  }
+
+  pixelStepY {
+    // FIXME for now we are using step instead
+    ^this.step;
+  }
+
   x {
     ^this.getProperty( \xValue );
   }
@@ -43,6 +53,11 @@ QSlider2D : QAbstractStepValue {
     this.doAction;
   }
 
+  incrementX { arg factor=1.0; this.invokeMethod( \incrementX, factor.asFloat ); }
+  decrementX { arg factor=1.0; this.invokeMethod( \decrementX, factor.asFloat ); }
+  incrementY { arg factor=1.0; this.invokeMethod( \incrementY, factor.asFloat ); }
+  decrementY { arg factor=1.0; this.invokeMethod( \decrementY, factor.asFloat ); }
+
   randomize {
     this.setXYActive( 1.0.rand, 1.0.rand );
   }
@@ -61,5 +76,12 @@ QSlider2D : QAbstractStepValue {
 
   background_ { arg color;
     this.setProperty( \palette, this.palette.baseColor_(color) );
+  }
+
+  defaultGetDrag { ^Point(this.x,this.y); }
+  defaultCanReceiveDrag { ^(QView.currentDrag.class === Point); }
+  defaultReceiveDrag {
+    var pt = QView.currentDrag;
+    this.setXYActive( pt.x, pt.y );
   }
 }

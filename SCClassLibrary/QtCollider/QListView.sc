@@ -4,6 +4,18 @@ QListView : QItemViewBase {
 
   *qtClass { ^"QcListWidget" }
 
+  mouseDownEvent { arg x, y, modifiers, buttonNumber, clickCount;
+    // Override QView:mouseDownEvent:
+    // If Ctrl / Cmd is pressed, try to start the drag after this event
+    // is processed, so that current item can be changed before.
+    if( (modifiers & QKeyModifiers.control) > 0 ) {
+      AppClock.sched( 0, {this.beginDrag(x,y)} );
+    };
+
+    modifiers = QKeyModifiers.toCocoa(modifiers);
+    ^this.mouseDown( x, y, modifiers, buttonNumber, clickCount );
+  }
+
   selectionMode_ { arg mode;
     var m;
     m = mode.switch(
@@ -72,5 +84,11 @@ QListView : QItemViewBase {
   colors_ { arg colorArray;
     colors = colorArray;
     this.setProperty( \colors, colorArray );
+  }
+
+  defaultGetDrag { ^this.value; }
+  defaultCanReceiveDrag { ^QView.currentDrag.isNumber; }
+  defaultReceiveDrag {
+    this.valueAction = QView.currentDrag;
   }
 }
