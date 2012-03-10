@@ -15,5 +15,5 @@ common/Packager/SuperCollider*.dmg
 
 #build directories
 /build*
-
+/platform/iphone/build_iphone*
 *~
