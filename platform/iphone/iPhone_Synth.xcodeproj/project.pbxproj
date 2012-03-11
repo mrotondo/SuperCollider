@@ -1190,10 +1190,6 @@
 				);
 				GCC_THUMB_SUPPORT = NO;
 				GENERATE_MASTER_OBJECT_FILE = YES;
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"\"$(SYSTEM_APPS_DIR)/SC3/git/platform/mac/lib\"",
-				);
 				OBJROOT = "$(SYMROOT)";
 				"OTHER_LDFLAGS[sdk=iphoneos*]" = lib/libsndfile_iphone.a;
 				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = ../mac/lib/scUBlibsndfile.a;
