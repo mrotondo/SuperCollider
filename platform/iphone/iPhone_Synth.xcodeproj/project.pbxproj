@@ -1163,6 +1163,8 @@
 				);
 				GCC_THUMB_SUPPORT = NO;
 				GENERATE_MASTER_OBJECT_FILE = YES;
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = lib/libsndfile_iphone.a;
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = ../mac/lib/scUBlibsndfile.a;
 				PRODUCT_NAME = "libscsynth iOS";
 				SKIP_INSTALL = YES;
 				SYMROOT = build_iphone;
@@ -1193,6 +1195,8 @@
 					"\"$(SYSTEM_APPS_DIR)/SC3/git/platform/mac/lib\"",
 				);
 				OBJROOT = "$(SYMROOT)";
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = lib/libsndfile_iphone.a;
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = ../mac/lib/scUBlibsndfile.a;
 				PRODUCT_NAME = "libscsynth iOS";
 				SKIP_INSTALL = YES;
 				SYMROOT = build_iphone;
