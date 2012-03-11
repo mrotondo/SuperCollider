@@ -134,6 +134,65 @@
 		77AA94C70EB3692900DC0BCB /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 77724C6A0EABF92400732A1C /* AudioToolbox.framework */; };
 		77AA94C80EB3692900DC0BCB /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 77724C6C0EABF92400732A1C /* CoreAudio.framework */; };
 		77BA5027129C364A00CE89DD /* FileBrowserViewController.mm in Sources */ = {isa = PBXBuildFile; fileRef = 77BA5026129C364A00CE89DD /* FileBrowserViewController.mm */; };
+		C260A2A0150CB84400B802A7 /* SC_AllocPool.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 777249810EABE96E00732A1C /* SC_AllocPool.cpp */; };
+		C260A2A1150CB84400B802A7 /* SC_DirUtils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 777249820EABE96E00732A1C /* SC_DirUtils.cpp */; };
+		C260A2A2150CB84400B802A7 /* SC_Sem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 777249840EABE96E00732A1C /* SC_Sem.cpp */; };
+		C260A2A3150CB84400B802A7 /* SC_StringBuffer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 777249860EABE96E00732A1C /* SC_StringBuffer.cpp */; };
+		C260A2A4150CB84400B802A7 /* SC_StandAloneInfo_Darwin.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 777249850EABE96E00732A1C /* SC_StandAloneInfo_Darwin.cpp */; };
+		C260A2A5150CB84400B802A7 /* SC_StringParser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 777249870EABE96E00732A1C /* SC_StringParser.cpp */; };
+		C260A2A6150CB84400B802A7 /* scsynthsend.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 777249890EABE96E00732A1C /* scsynthsend.cpp */; };
+		C260A2A7150CB84400B802A7 /* SC_Win32Utils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 777249880EABE96E00732A1C /* SC_Win32Utils.cpp */; };
+		C260A2A8150CB84400B802A7 /* Rendezvous.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A070EABE96E00732A1C /* Rendezvous.cpp */; };
+		C260A2A9150CB84400B802A7 /* Samp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A080EABE96E00732A1C /* Samp.cpp */; };
+		C260A2AA150CB84400B802A7 /* SC_BufGen.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A090EABE96E00732A1C /* SC_BufGen.cpp */; };
+		C260A2AB150CB84400B802A7 /* SC_Carbon.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A0A0EABE96E00732A1C /* SC_Carbon.cpp */; };
+		C260A2AC150CB84400B802A7 /* SC_ComPort.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A0C0EABE96E00732A1C /* SC_ComPort.cpp */; };
+		C260A2AD150CB84400B802A7 /* SC_CoreAudio.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A0D0EABE96E00732A1C /* SC_CoreAudio.cpp */; };
+		C260A2AE150CB84400B802A7 /* SC_Errors.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A0F0EABE96E00732A1C /* SC_Errors.cpp */; };
+		C260A2AF150CB84400B802A7 /* SC_Graph.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A100EABE96E00732A1C /* SC_Graph.cpp */; };
+		C260A2B0150CB84400B802A7 /* SC_GraphDef.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A110EABE96E00732A1C /* SC_GraphDef.cpp */; };
+		C260A2B1150CB84400B802A7 /* SC_Group.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A120EABE96E00732A1C /* SC_Group.cpp */; };
+		C260A2B2150CB84400B802A7 /* SC_Lib.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A140EABE96E00732A1C /* SC_Lib.cpp */; };
+		C260A2B3150CB84400B802A7 /* SC_MiscCmds.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A160EABE96E00732A1C /* SC_MiscCmds.cpp */; };
+		C260A2B4150CB84400B802A7 /* SC_Lib_Cintf.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A150EABE96E00732A1C /* SC_Lib_Cintf.cpp */; };
+		C260A2B5150CB84400B802A7 /* SC_Node.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A170EABE96E00732A1C /* SC_Node.cpp */; };
+		C260A2B6150CB84400B802A7 /* SC_SequencedCommand.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A190EABE96E00732A1C /* SC_SequencedCommand.cpp */; };
+		C260A2B7150CB84400B802A7 /* SC_Rate.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A180EABE96E00732A1C /* SC_Rate.cpp */; };
+		C260A2B8150CB84400B802A7 /* SC_Str4.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A1A0EABE96E00732A1C /* SC_Str4.cpp */; };
+		C260A2B9150CB84400B802A7 /* SC_Unit.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A1C0EABE96E00732A1C /* SC_Unit.cpp */; };
+		C260A2BA150CB84400B802A7 /* SC_UnitDef.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A1D0EABE96E00732A1C /* SC_UnitDef.cpp */; };
+		C260A2BB150CB84400B802A7 /* SC_World.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 77724A1E0EABE96E00732A1C /* SC_World.cpp */; };
+		C260A2BC150CB84400B802A7 /* BinaryOpUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B8390F43603A0044CAC0 /* BinaryOpUGens.cpp */; };
+		C260A2BD150CB84400B802A7 /* ChaosUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B83A0F43603A0044CAC0 /* ChaosUGens.cpp */; };
+		C260A2BE150CB84400B802A7 /* DelayUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B83D0F43603A0044CAC0 /* DelayUGens.cpp */; };
+		C260A2BF150CB84400B802A7 /* DemandUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B83E0F43603A0044CAC0 /* DemandUGens.cpp */; };
+		C260A2C0150CB84400B802A7 /* DiskIO_UGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B83F0F43603A0044CAC0 /* DiskIO_UGens.cpp */; };
+		C260A2C1150CB84400B802A7 /* DynNoiseUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B8400F43603A0044CAC0 /* DynNoiseUGens.cpp */; };
+		C260A2C2150CB84400B802A7 /* FilterUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B8460F43603A0044CAC0 /* FilterUGens.cpp */; };
+		C260A2C3150CB84400B802A7 /* GrainUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B8480F43603A0044CAC0 /* GrainUGens.cpp */; };
+		C260A2C4150CB84400B802A7 /* IOUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B8490F43603A0044CAC0 /* IOUGens.cpp */; };
+		C260A2C5150CB84400B802A7 /* LFUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B84D0F43603A0044CAC0 /* LFUGens.cpp */; };
+		C260A2C6150CB84400B802A7 /* MulAddUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B8540F43603A0044CAC0 /* MulAddUGens.cpp */; };
+		C260A2C7150CB84400B802A7 /* NoiseUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B8550F43603A0044CAC0 /* NoiseUGens.cpp */; };
+		C260A2C8150CB84400B802A7 /* OscUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B85A0F43603A0044CAC0 /* OscUGens.cpp */; };
+		C260A2C9150CB84400B802A7 /* PanUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B85B0F43603A0044CAC0 /* PanUGens.cpp */; };
+		C260A2CA150CB84400B802A7 /* PhysicalModelingUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B85D0F43603A0044CAC0 /* PhysicalModelingUGens.cpp */; };
+		C260A2CB150CB84400B802A7 /* ReverbUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B8600F43603A0044CAC0 /* ReverbUGens.cpp */; };
+		C260A2CC150CB84400B802A7 /* TestUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B8630F43603A0044CAC0 /* TestUGens.cpp */; };
+		C260A2CD150CB84400B802A7 /* TriggerUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B8640F43603A0044CAC0 /* TriggerUGens.cpp */; };
+		C260A2CE150CB84400B802A7 /* UnaryOpUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B8650F43603A0044CAC0 /* UnaryOpUGens.cpp */; };
+		C260A2CF150CB84400B802A7 /* iPhoneUGens.mm in Sources */ = {isa = PBXBuildFile; fileRef = 7751B84A0F43603A0044CAC0 /* iPhoneUGens.mm */; };
+		C260A2D0150CB84400B802A7 /* GendynUGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B8470F43603A0044CAC0 /* GendynUGens.cpp */; };
+		C260A2D1150CB84400B802A7 /* FFT_UGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B8430F43603A0044CAC0 /* FFT_UGens.cpp */; };
+		C260A2D2150CB84400B802A7 /* PV_UGens.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B85F0F43603A0044CAC0 /* PV_UGens.cpp */; };
+		C260A2D3150CB84400B802A7 /* FFTInterfaceTable.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B8450F43603A0044CAC0 /* FFTInterfaceTable.cpp */; };
+		C260A2D4150CB84400B802A7 /* PartitionedConvolution.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7751B85C0F43603A0044CAC0 /* PartitionedConvolution.cpp */; };
+		C260A2D5150CB84400B802A7 /* SC_fftlib.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7759953812FDE0C900603187 /* SC_fftlib.cpp */; };
+		C260A2D7150CB84400B802A7 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1D30AB110D05D00D00671497 /* Foundation.framework */; };
+		C260A2D8150CB84400B802A7 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DF5F4DF0D08C38300B7A737 /* UIKit.framework */; };
+		C260A2D9150CB84400B802A7 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 288765FC0DF74451002DB57D /* CoreGraphics.framework */; };
+		C260A2DA150CB84400B802A7 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 77724C6A0EABF92400732A1C /* AudioToolbox.framework */; };
+		C260A2DB150CB84400B802A7 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 77724C6C0EABF92400732A1C /* CoreAudio.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -346,13 +405,14 @@
 		778F12450F50A70400CB6629 /* iscsynth_MainWindow.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = iscsynth_MainWindow.xib; path = "iPhone Resources/iscsynth_MainWindow.xib"; sourceTree = "<group>"; };
 		778F12510F50A72900CB6629 /* synthdefs */ = {isa = PBXFileReference; lastKnownFileType = folder; name = synthdefs; path = "iPhone Resources/synthdefs"; sourceTree = "<group>"; };
 		77A489370FBFA8DA00E909E1 /* SuperCollider_FileTransfer.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = SuperCollider_FileTransfer.xib; path = "iPhone Resources/SuperCollider_FileTransfer.xib"; sourceTree = "<group>"; };
-		77AA93920EB3685400DC0BCB /* libscsynth.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libscsynth.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		77AA93920EB3685400DC0BCB /* libscsynth iOS.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libscsynth iOS.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		77AB4FC112FB38AC00810BCF /* vec_base.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = vec_base.hpp; sourceTree = "<group>"; };
 		77AB4FC212FB38AC00810BCF /* vec_int_altivec.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = vec_int_altivec.hpp; sourceTree = "<group>"; };
 		77AB4FC312FB38AC00810BCF /* vec_int_neon.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = vec_int_neon.hpp; sourceTree = "<group>"; };
 		77AB4FC412FB38AC00810BCF /* vec_neon.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = vec_neon.hpp; sourceTree = "<group>"; };
 		77BA5025129C364A00CE89DD /* FileBrowserViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FileBrowserViewController.h; sourceTree = "<group>"; };
 		77BA5026129C364A00CE89DD /* FileBrowserViewController.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = FileBrowserViewController.mm; sourceTree = "<group>"; };
+		C260A2DF150CB84400B802A7 /* libscsynth OS X.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libscsynth OS X.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -382,6 +442,18 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C260A2D6150CB84400B802A7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C260A2D7150CB84400B802A7 /* Foundation.framework in Frameworks */,
+				C260A2D8150CB84400B802A7 /* UIKit.framework in Frameworks */,
+				C260A2D9150CB84400B802A7 /* CoreGraphics.framework in Frameworks */,
+				C260A2DA150CB84400B802A7 /* AudioToolbox.framework in Frameworks */,
+				C260A2DB150CB84400B802A7 /* CoreAudio.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -389,7 +461,8 @@
 			isa = PBXGroup;
 			children = (
 				1D6058910D05DD3D006BFB54 /* iscsynth.app */,
-				77AA93920EB3685400DC0BCB /* libscsynth.a */,
+				77AA93920EB3685400DC0BCB /* libscsynth iOS.a */,
+				C260A2DF150CB84400B802A7 /* libscsynth OS X.a */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -731,6 +804,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C260A29E150CB84400B802A7 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
@@ -752,9 +832,9 @@
 			productReference = 1D6058910D05DD3D006BFB54 /* iscsynth.app */;
 			productType = "com.apple.product-type.application";
 		};
-		77AA93910EB3685300DC0BCB /* libscsynth */ = {
+		77AA93910EB3685300DC0BCB /* libscsynth iOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 77AA939E0EB3687200DC0BCB /* Build configuration list for PBXNativeTarget "libscsynth" */;
+			buildConfigurationList = 77AA939E0EB3687200DC0BCB /* Build configuration list for PBXNativeTarget "libscsynth iOS" */;
 			buildPhases = (
 				77AA938E0EB3685300DC0BCB /* Headers */,
 				77AA938F0EB3685300DC0BCB /* Sources */,
@@ -764,9 +844,26 @@
 			);
 			dependencies = (
 			);
-			name = libscsynth;
+			name = "libscsynth iOS";
 			productName = libiscsynth;
-			productReference = 77AA93920EB3685400DC0BCB /* libscsynth.a */;
+			productReference = 77AA93920EB3685400DC0BCB /* libscsynth iOS.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		C260A29D150CB84400B802A7 /* libscsynth OS X */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C260A2DC150CB84400B802A7 /* Build configuration list for PBXNativeTarget "libscsynth OS X" */;
+			buildPhases = (
+				C260A29E150CB84400B802A7 /* Headers */,
+				C260A29F150CB84400B802A7 /* Sources */,
+				C260A2D6150CB84400B802A7 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "libscsynth OS X";
+			productName = libiscsynth;
+			productReference = C260A2DF150CB84400B802A7 /* libscsynth OS X.a */;
 			productType = "com.apple.product-type.library.static";
 		};
 /* End PBXNativeTarget section */
@@ -789,7 +886,8 @@
 			projectRoot = "";
 			targets = (
 				1D6058900D05DD3D006BFB54 /* iscsynth */,
-				77AA93910EB3685300DC0BCB /* libscsynth */,
+				77AA93910EB3685300DC0BCB /* libscsynth iOS */,
+				C260A29D150CB84400B802A7 /* libscsynth OS X */,
 			);
 		};
 /* End PBXProject section */
@@ -933,6 +1031,67 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C260A29F150CB84400B802A7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C260A2A0150CB84400B802A7 /* SC_AllocPool.cpp in Sources */,
+				C260A2A1150CB84400B802A7 /* SC_DirUtils.cpp in Sources */,
+				C260A2A2150CB84400B802A7 /* SC_Sem.cpp in Sources */,
+				C260A2A3150CB84400B802A7 /* SC_StringBuffer.cpp in Sources */,
+				C260A2A4150CB84400B802A7 /* SC_StandAloneInfo_Darwin.cpp in Sources */,
+				C260A2A5150CB84400B802A7 /* SC_StringParser.cpp in Sources */,
+				C260A2A6150CB84400B802A7 /* scsynthsend.cpp in Sources */,
+				C260A2A7150CB84400B802A7 /* SC_Win32Utils.cpp in Sources */,
+				C260A2A8150CB84400B802A7 /* Rendezvous.cpp in Sources */,
+				C260A2A9150CB84400B802A7 /* Samp.cpp in Sources */,
+				C260A2AA150CB84400B802A7 /* SC_BufGen.cpp in Sources */,
+				C260A2AB150CB84400B802A7 /* SC_Carbon.cpp in Sources */,
+				C260A2AC150CB84400B802A7 /* SC_ComPort.cpp in Sources */,
+				C260A2AD150CB84400B802A7 /* SC_CoreAudio.cpp in Sources */,
+				C260A2AE150CB84400B802A7 /* SC_Errors.cpp in Sources */,
+				C260A2AF150CB84400B802A7 /* SC_Graph.cpp in Sources */,
+				C260A2B0150CB84400B802A7 /* SC_GraphDef.cpp in Sources */,
+				C260A2B1150CB84400B802A7 /* SC_Group.cpp in Sources */,
+				C260A2B2150CB84400B802A7 /* SC_Lib.cpp in Sources */,
+				C260A2B3150CB84400B802A7 /* SC_MiscCmds.cpp in Sources */,
+				C260A2B4150CB84400B802A7 /* SC_Lib_Cintf.cpp in Sources */,
+				C260A2B5150CB84400B802A7 /* SC_Node.cpp in Sources */,
+				C260A2B6150CB84400B802A7 /* SC_SequencedCommand.cpp in Sources */,
+				C260A2B7150CB84400B802A7 /* SC_Rate.cpp in Sources */,
+				C260A2B8150CB84400B802A7 /* SC_Str4.cpp in Sources */,
+				C260A2B9150CB84400B802A7 /* SC_Unit.cpp in Sources */,
+				C260A2BA150CB84400B802A7 /* SC_UnitDef.cpp in Sources */,
+				C260A2BB150CB84400B802A7 /* SC_World.cpp in Sources */,
+				C260A2BC150CB84400B802A7 /* BinaryOpUGens.cpp in Sources */,
+				C260A2BD150CB84400B802A7 /* ChaosUGens.cpp in Sources */,
+				C260A2BE150CB84400B802A7 /* DelayUGens.cpp in Sources */,
+				C260A2BF150CB84400B802A7 /* DemandUGens.cpp in Sources */,
+				C260A2C0150CB84400B802A7 /* DiskIO_UGens.cpp in Sources */,
+				C260A2C1150CB84400B802A7 /* DynNoiseUGens.cpp in Sources */,
+				C260A2C2150CB84400B802A7 /* FilterUGens.cpp in Sources */,
+				C260A2C3150CB84400B802A7 /* GrainUGens.cpp in Sources */,
+				C260A2C4150CB84400B802A7 /* IOUGens.cpp in Sources */,
+				C260A2C5150CB84400B802A7 /* LFUGens.cpp in Sources */,
+				C260A2C6150CB84400B802A7 /* MulAddUGens.cpp in Sources */,
+				C260A2C7150CB84400B802A7 /* NoiseUGens.cpp in Sources */,
+				C260A2C8150CB84400B802A7 /* OscUGens.cpp in Sources */,
+				C260A2C9150CB84400B802A7 /* PanUGens.cpp in Sources */,
+				C260A2CA150CB84400B802A7 /* PhysicalModelingUGens.cpp in Sources */,
+				C260A2CB150CB84400B802A7 /* ReverbUGens.cpp in Sources */,
+				C260A2CC150CB84400B802A7 /* TestUGens.cpp in Sources */,
+				C260A2CD150CB84400B802A7 /* TriggerUGens.cpp in Sources */,
+				C260A2CE150CB84400B802A7 /* UnaryOpUGens.cpp in Sources */,
+				C260A2CF150CB84400B802A7 /* iPhoneUGens.mm in Sources */,
+				C260A2D0150CB84400B802A7 /* GendynUGens.cpp in Sources */,
+				C260A2D1150CB84400B802A7 /* FFT_UGens.cpp in Sources */,
+				C260A2D2150CB84400B802A7 /* PV_UGens.cpp in Sources */,
+				C260A2D3150CB84400B802A7 /* FFTInterfaceTable.cpp in Sources */,
+				C260A2D4150CB84400B802A7 /* PartitionedConvolution.cpp in Sources */,
+				C260A2D5150CB84400B802A7 /* SC_fftlib.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
@@ -1004,12 +1163,7 @@
 				);
 				GCC_THUMB_SUPPORT = NO;
 				GENERATE_MASTER_OBJECT_FILE = YES;
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"\"$(SYSTEM_APPS_DIR)/SC3/git/platform/mac/lib\"",
-				);
-				PREBINDING = NO;
-				PRODUCT_NAME = libscsynth;
+				PRODUCT_NAME = "libscsynth iOS";
 				SKIP_INSTALL = YES;
 				SYMROOT = build_iphone;
 			};
@@ -1039,8 +1193,7 @@
 					"\"$(SYSTEM_APPS_DIR)/SC3/git/platform/mac/lib\"",
 				);
 				OBJROOT = "$(SYMROOT)";
-				PREBINDING = NO;
-				PRODUCT_NAME = libscsynth;
+				PRODUCT_NAME = "libscsynth iOS";
 				SKIP_INSTALL = YES;
 				SYMROOT = build_iphone;
 				ZERO_LINK = NO;
@@ -1084,6 +1237,55 @@
 			};
 			name = Release;
 		};
+		C260A2DD150CB84400B802A7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(NATIVE_ARCH_ACTUAL)";
+				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)";
+				COPY_PHASE_STRIP = YES;
+				EXECUTABLE_PREFIX = "";
+				EXPORTED_SYMBOLS_FILE = libscsynth_exp;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					STATIC_PLUGINS,
+					NOVA_SIMD,
+				);
+				GCC_THUMB_SUPPORT = NO;
+				GENERATE_MASTER_OBJECT_FILE = YES;
+				PRODUCT_NAME = "libscsynth OS X";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SYMROOT = build_iphone;
+			};
+			name = Debug;
+		};
+		C260A2DE150CB84400B802A7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(NATIVE_ARCH_ACTUAL)";
+				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)";
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				EXECUTABLE_PREFIX = "";
+				EXPORTED_SYMBOLS_FILE = libscsynth_exp;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					STATIC_PLUGINS,
+					NDEBUG,
+					NOVA_SIMD,
+				);
+				GCC_THUMB_SUPPORT = NO;
+				GENERATE_MASTER_OBJECT_FILE = YES;
+				OBJROOT = "$(SYMROOT)";
+				PRODUCT_NAME = "libscsynth OS X";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SYMROOT = build_iphone;
+				ZERO_LINK = NO;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1096,7 +1298,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		77AA939E0EB3687200DC0BCB /* Build configuration list for PBXNativeTarget "libscsynth" */ = {
+		77AA939E0EB3687200DC0BCB /* Build configuration list for PBXNativeTarget "libscsynth iOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				77AA93930EB3685400DC0BCB /* Debug */,
@@ -1110,6 +1312,15 @@
 			buildConfigurations = (
 				C01FCF4F08A954540054247B /* Debug */,
 				C01FCF5008A954540054247B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C260A2DC150CB84400B802A7 /* Build configuration list for PBXNativeTarget "libscsynth OS X" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C260A2DD150CB84400B802A7 /* Debug */,
+				C260A2DE150CB84400B802A7 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
