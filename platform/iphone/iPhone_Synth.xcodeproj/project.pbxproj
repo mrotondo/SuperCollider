@@ -1167,6 +1167,8 @@
 				);
 				GCC_THUMB_SUPPORT = NO;
 				GENERATE_MASTER_OBJECT_FILE = YES;
+				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = lib/libsndfile_iphone.a;
+				"OTHER_LDFLAGS[sdk=iphonesimulator*][arch=*]" = ../mac/lib/scUBlibsndfile.a;
 				PRODUCT_NAME = "libscsynth iOS";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -1193,6 +1195,8 @@
 				GCC_THUMB_SUPPORT = NO;
 				GENERATE_MASTER_OBJECT_FILE = YES;
 				OBJROOT = "$(SYMROOT)";
+				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = lib/libsndfile_iphone.a;
+				"OTHER_LDFLAGS[sdk=iphonesimulator*][arch=*]" = ../mac/lib/scUBlibsndfile.a;
 				PRODUCT_NAME = "libscsynth iOS";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -1263,6 +1267,7 @@
 					"$(inherited)",
 					"\"$(SRCROOT)/../mac/lib\"",
 				);
+				OTHER_LDFLAGS = ../mac/lib/scUBlibsndfile.a;
 				PRODUCT_NAME = "libscsynth OS X";
 				SKIP_INSTALL = YES;
 				SYMROOT = build_iphone;
@@ -1290,6 +1295,7 @@
 					"\"$(SRCROOT)/../mac/lib\"",
 				);
 				OBJROOT = "$(SYMROOT)";
+				OTHER_LDFLAGS = ../mac/lib/scUBlibsndfile.a;
 				PRODUCT_NAME = "libscsynth OS X";
 				SKIP_INSTALL = YES;
 				SYMROOT = build_iphone;
