@@ -97,6 +97,7 @@ what loop constructs the compiler can best generate code.
 /*
 meanings of the indexing macros:
 	ZXP = dereference and pre or post increment
+    ZXPN = pre or post increment
 	ZX = dereference
 	PZ = preincrement (if applicable)
 	ZP = postincrement (if applicable)
@@ -107,12 +108,14 @@ meanings of the indexing macros:
 
 #if PREINCREMENT_IS_FASTER
 #define ZXP(z) (*++(z))
+#define ZXPN(z) (++(z))
 #define ZX(z) (*(z))
 #define PZ(z) (++(z))
 #define ZP(z) (z)
 #define ZOFF (1)
 #elif POSTINCREMENT_IS_FASTER
 #define ZXP(z) (*(z)++)
+#define ZXPN(z) ((z)++)
 #define ZX(z) (*(z))
 #define PZ(z) (z)
 #define ZP(z) ((z)++)
