@@ -37,10 +37,6 @@
 #include <sys/time.h>
 #endif
 
-#ifdef SC_IPHONE
-#include "SC_VFP11.h"
-#endif
-
 
 #ifdef _WIN32
 #include "SC_Win32Utils.h"
@@ -49,6 +45,10 @@
 #ifndef SC_INNERSC
 int64 gStartupOSCTime = -1;
 #endif //ifndef SC_INNERSC
+
+#ifdef IPHONE_VEC
+#include <Accelerate/Accelerate.h>
+#endif
 
 void sc_SetDenormalFlags();
 
@@ -1961,7 +1961,7 @@ void SC_iCoreAudioDriver::Run(const AudioBufferList* inInputData,
 						if (nchan == 1)
 						{
 #ifdef IPHONE_VEC
-							vcopy(busdata, bufdata, bufFrames);
+                            cblas_scopy(bufFrames, bufdata, 1, busdata, 1);
 #else
 							for (int k=0; k<bufFrames; ++k)
 							{
@@ -2022,7 +2022,7 @@ void SC_iCoreAudioDriver::Run(const AudioBufferList* inInputData,
 						if (outputTouched[b] == bufCounter)
 						{
 #ifdef IPHONE_VEC
-							vcopy(bufdata, busdata, bufFrames);
+                            cblas_scopy(bufFrames, busdata, 1, bufdata, 1);
 #else
 							for (int k=0; k<bufFrames; ++k)
 							{

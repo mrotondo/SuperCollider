@@ -21,10 +21,6 @@
 
 #include "SC_PlugIn.h"
 
-#ifdef SC_IPHONE
-#include "SC_VFP11.h"
-#endif
-
 #ifdef NOVA_SIMD
 #include "simd_memory.hpp"
 #include "simd_mix.hpp"
@@ -36,6 +32,10 @@
 #define inline_functions
 #endif
 
+#endif
+
+#if defined(SC_IPHONE)
+#include <Accelerate/Accelerate.h>
 #endif
 
 static InterfaceTable *ft;
@@ -519,11 +519,12 @@ void vIn_next_a(IOUnit *unit, int inNumSamples)
 		float *out = OUT(i);
 		if (touched[i] == bufCounter)
 		{
-			vcopy(out, in, inNumSamples);
+            cblas_scopy(inNumSamples, in, 1, out, 1);
 		}
 		else
 		{
-			vfill(out, 0.f, inNumSamples);
+            float fillValue = 0.0f;
+            vDSP_vfill(&fillValue, out, 1, inNumSamples);
 		}
 		RELEASE_BUS_AUDIO_SHARED((int32)fbusChannel + i);
 	}
@@ -967,11 +968,11 @@ void vOut_next_a(IOUnit *unit, int inNumSamples)
 		float *in = IN(i+1);
 		if (touched[i] == bufCounter)
 		{
-			vadd(out, out, in, inNumSamples);
+            vDSP_vadd(in, 1, out, 1, out, 1, inNumSamples);
 		}
 		else
 		{
-			vcopy(out, in, inNumSamples);
+            cblas_scopy(inNumSamples, in, 1, out, 1);
 			touched[i] = bufCounter;
 		}
 		//Print("out %d %g %g\n", i, in[0], out[0]);

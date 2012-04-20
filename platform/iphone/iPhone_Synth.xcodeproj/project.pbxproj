@@ -265,7 +265,6 @@
 		772C0C0412DA09F3009C0126 /* SC_StringParser.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SC_StringParser.h; sourceTree = "<group>"; };
 		772C0C0512DA09F3009C0126 /* SC_SyncCondition.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SC_SyncCondition.h; sourceTree = "<group>"; };
 		772C0C0612DA09F3009C0126 /* SC_Types.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SC_Types.h; sourceTree = "<group>"; };
-		772C0C0712DA09F3009C0126 /* SC_VFP11.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SC_VFP11.h; sourceTree = "<group>"; };
 		772C0C0812DA09F3009C0126 /* SC_Win32Utils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SC_Win32Utils.h; sourceTree = "<group>"; };
 		772C0C0912DA09F3009C0126 /* scsynthsend.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = scsynthsend.h; sourceTree = "<group>"; };
 		772C0C0A12DA0A03009C0126 /* HashTable.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = HashTable.h; sourceTree = "<group>"; };
@@ -718,7 +717,6 @@
 				772C0C0412DA09F3009C0126 /* SC_StringParser.h */,
 				772C0C0512DA09F3009C0126 /* SC_SyncCondition.h */,
 				772C0C0612DA09F3009C0126 /* SC_Types.h */,
-				772C0C0712DA09F3009C0126 /* SC_VFP11.h */,
 				772C0C0812DA09F3009C0126 /* SC_Win32Utils.h */,
 				772C0C0912DA09F3009C0126 /* scsynthsend.h */,
 			);
@@ -1164,6 +1162,7 @@
 					SC_IPHONE,
 					STATIC_PLUGINS,
 					NOVA_SIMD,
+					IPHONE_VEC,
 				);
 				GCC_THUMB_SUPPORT = NO;
 				GENERATE_MASTER_OBJECT_FILE = YES;
@@ -1191,6 +1190,7 @@
 					STATIC_PLUGINS,
 					NDEBUG,
 					NOVA_SIMD,
+					IPHONE_VEC,
 				);
 				GCC_THUMB_SUPPORT = NO;
 				GENERATE_MASTER_OBJECT_FILE = YES;
