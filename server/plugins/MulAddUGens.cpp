@@ -39,7 +39,9 @@ using nova::wrap_argument;
 
 #endif
 
-
+#if defined (SC_IPHONE) && defined (IPHONE_VEC)
+#include <Accelerate/Accelerate.h>
+#endif
 
 static InterfaceTable *ft;
 
@@ -245,8 +247,7 @@ void ampmix_ia(MulAdd *unit, int inNumSamples)
 	in++;
 	out++;
 	mix++;
-	vscalarmul(in, amp_cur, in, inNumSamples);
-	vadd(out, in, mix, inNumSamples);
+    vDSP_vsma(in, 1, &amp_cur, mix, 1, out, 1, inNumSamples);
 #else
 	LOOP1(inNumSamples, ZXP(out) = amp_cur * ZXP(in) + ZXP(mix); );
 #endif
