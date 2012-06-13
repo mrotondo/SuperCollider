@@ -117,7 +117,7 @@ ServerOptions
 		if (outputStreamsEnabled.notNil, {
 			o = o ++ " -O " ++ outputStreamsEnabled ;
 		});
-		if (inDevice == outDevice)
+		if ((thisProcess.platform.name!=\osx) or: {inDevice == outDevice})
 		{
 			if (inDevice.notNil,
 			{
@@ -151,10 +151,6 @@ ServerOptions
 		^numOutputBusChannels + numInputBusChannels
 	}
 
-	numAudioBusChannels_{
-		this.deprecated(thisMethod);
-	}
-
 	numAudioBusChannels{
 		^numPrivateAudioBusChannels + numInputBusChannels + numOutputBusChannels
 	}
@@ -162,16 +158,6 @@ ServerOptions
 	bootInProcess {
 		_BootInProcessServer
 		^this.primitiveFailed
-	}
-
-	rendezvous_ {|bool|
-		zeroConf = bool;
-		this.deprecated(thisMethod, ServerOptions.findMethod(\zeroConf_))
-	}
-
-	rendezvous {|bool|
-		this.deprecated(thisMethod, ServerOptions.findMethod(\zeroConf));
-		^zeroConf;
 	}
 
 	*prListDevices {
@@ -193,6 +179,50 @@ ServerOptions
 	}
 }
 
+ServerShmInterface {
+	// order matters!
+	var ptr, finalizer;
+
+	*new {|port|
+		^super.new.connect(port)
+	}
+
+	copy {
+		// never ever copy! will cause duplicate calls to the finalizer!
+		^this
+	}
+
+	connect {
+		_ServerShmInterface_connectSharedMem
+		^this.primitiveFailed
+	}
+
+	disconnect {
+		_ServerShmInterface_disconnectSharedMem
+		^this.primitiveFailed
+	}
+
+	getControlBusValue {
+		_ServerShmInterface_getControlBusValue
+		^this.primitiveFailed
+	}
+
+	getControlBusValues {
+		_ServerShmInterface_getControlBusValues
+		^this.primitiveFailed
+	}
+
+	setControlBusValue {
+		_ServerShmInterface_setControlBusValue
+		^this.primitiveFailed
+	}
+
+	setControlBusValues {
+		_ServerShmInterface_setControlBusValues
+		^this.primitiveFailed
+	}
+}
+
 Server {
 	classvar <>local, <>internal, <default, <>named, <>set, <>program, <>sync_s = true;
 
@@ -204,6 +234,7 @@ Server {
 	var <controlBusAllocator;
 	var <audioBusAllocator;
 	var <bufferAllocator;
+	var <scopeBufferAllocator;
 	var <syncThread, <syncTasks;
 
 	var <numUGens=0, <numSynths=0, <numGroups=0, <numSynthDefs=0;
@@ -221,6 +252,7 @@ Server {
 	var <volume;
 
 	var <pid;
+	var serverInterface;
 
 	*default_ { |server|
 		default = server; // sync with s?
@@ -262,6 +294,7 @@ Server {
 		this.newNodeAllocators;
 		this.newBusAllocators;
 		this.newBufferAllocators;
+		this.newScopeBufferAllocators;
 		NotificationCenter.notify(this, \newAllocators);
 	}
 
@@ -277,6 +310,12 @@ Server {
 
 	newBufferAllocators {
 		bufferAllocator = ContiguousBlockAllocator.new(options.numBuffers);
+	}
+
+	newScopeBufferAllocators {
+		if (isLocal) {
+			scopeBufferAllocator = StackNumberAllocator.new(0, 127);
+		}
 	}
 
 	nextNodeID {
@@ -295,12 +334,7 @@ Server {
 		named = IdentityDictionary.new;
 		set = Set.new;
 		default = local = Server.new(\localhost, NetAddr("127.0.0.1", 57110));
-		Platform.switch(\windows, {
-			program = "scsynth.exe";
-		}, {
-			internal = Server.new(\internal, NetAddr.new);
-			program = "cd % && exec ./scsynth".format(String.scDir.quote);
-		});
+		internal = Server.new(\internal, NetAddr.new);
 	}
 
 	*fromName { arg name;
@@ -399,6 +433,11 @@ Server {
 
 						ServerQuit.run(this);
 
+						if (serverInterface.notNil) {
+							serverInterface.disconnect;
+							serverInterface = nil;
+						};
+
 						AppClock.sched(5.0, {
 							// still down after 5 seconds, assume server is really dead
 							// if you explicitly shut down the server then newAllocators
@@ -429,13 +468,18 @@ Server {
 		}, responseName, addr).oneShot;
 	}
 
-	waitForBoot { arg onComplete, limit=100;
-		if(serverRunning.not) { this.boot };
-		this.doWhenBooted(onComplete, limit);
+	waitForBoot { arg onComplete, limit=100, onFailure;
+		// onFailure.true: why is this necessary?
+		// this.boot also calls doWhenBooted.
+		// doWhenBooted prints the normal boot failure message.
+		// if the server fails to boot, the failure error gets posted TWICE.
+		// So, we suppress one of them.
+		if(serverRunning.not) { this.boot(onFailure: true) };
+		this.doWhenBooted(onComplete, limit, onFailure);
 	}
 
-	doWhenBooted { arg onComplete, limit=100;
-		var mBootNotifyFirst = bootNotifyFirst;
+	doWhenBooted { arg onComplete, limit=100, onFailure;
+		var mBootNotifyFirst = bootNotifyFirst, postError = true;
 		bootNotifyFirst = false;
 
 		^Routine({
@@ -449,9 +493,15 @@ Server {
 			});
 
 			if(serverRunning.not,{
-				"server failed to start".error;
-				"For advice: [http://supercollider.sf.net/wiki/index.php/ERROR:_server_failed_to_start]".postln;
+				if(onFailure.notNil) {
+					postError = (onFailure.value == false);
+				};
+				if(postError) {
+					"server failed to start".error;
+					"For advice: [http://supercollider.sf.net/wiki/index.php/ERROR:_server_failed_to_start]".postln;
+				};
 				serverBooting = false;
+				this.changed(\serverRunning);
 			}, onComplete);
 		}).play(AppClock);
 	}
@@ -514,29 +564,6 @@ Server {
 			statusWatcher.enable;
 		};
 	}
-	// Buffer objects are cached in an Array for easy
-	// auto buffer info updating
-	addBuf { |buffer|
-		this.deprecated(thisMethod, Buffer.findRespondingMethodFor(\cache));
-		buffer.cache;
-	}
-
-	freeBuf { |i|
-		var	buf;
-		this.deprecated(thisMethod, Buffer.findRespondingMethodFor(\uncache));
-		if((buf = Buffer.cachedBufferAt(this, i)).notNil) { buf.free };
-	}
-
-	// /b_info on the way
-	// keeps a reference count of waiting Buffers so that only one responder is needed
-	waitForBufInfo {
-		this.deprecated(thisMethod, Buffer.findRespondingMethodFor(\cache));
-	}
-
-	resetBufferAutoInfo {
-		this.deprecated(thisMethod, Meta_Buffer.findRespondingMethodFor(\clearServerCaches));
-		Buffer.clearServerCaches(this);
-	}
 
 	cachedBuffersDo { |func| Buffer.cachedBuffersDo(this, func) }
 	cachedBufferAt { |bufnum| ^Buffer.cachedBufferAt(this, bufnum) }
@@ -586,7 +613,7 @@ Server {
 		});
 	}
 
-	boot { arg startAliveThread=true, recover=false;
+	boot { arg startAliveThread=true, recover=false, onFailure;
 		var resp;
 		if (serverRunning, { "server already running".inform; ^this });
 		if (serverBooting, { "server already booting".inform; ^this });
@@ -598,13 +625,22 @@ Server {
 		this.doWhenBooted({
 			serverBooting = false;
 			if (sendQuit.isNil) {
-				sendQuit = not(this.inProcess) and: {this.isLocal};
+				sendQuit = this.inProcess or: {this.isLocal};
 			};
+
+			if (this.inProcess) {
+				serverInterface = ServerShmInterface(thisProcess.pid);
+			} {
+				if (isLocal) {
+					serverInterface = ServerShmInterface(addr.port);
+				}
+			};
+
 			this.initTree;
-			(volume.volume != 0.0).if({
+			if(volume.volume != 0.0) {
 				volume.play;
-				});
-		});
+			};
+		}, onFailure: onFailure ? false);
 		if (remoteControlled.not, {
 			"You will have to manually boot remote server.".inform;
 		},{
@@ -620,6 +656,11 @@ Server {
 			//this.serverRunning = true;
 			pid = thisProcess.pid;
 		},{
+			if (serverInterface.notNil) {
+				serverInterface.disconnect;
+				serverInterface = nil;
+			};
+
 			pid = (program ++ options.asOptionsString(addr.port)).unixCmd;
 			//unixCmd(program ++ options.asOptionsString(addr.port)).postln;
 			("booting " ++ addr.port.asString).inform;
@@ -713,10 +754,10 @@ Server {
 		sendQuit = nil;
 		this.serverRunning = false;
 		if(scopeWindow.notNil) { scopeWindow.quit };
-		RootNode(this).freeAll;
-		volume.isPlaying.if({
+		if(volume.isPlaying) {
 			volume.free
-			});
+		};
+		RootNode(this).freeAll;
 		this.newAllocators;
 	}
 
@@ -840,7 +881,11 @@ Server {
 			if(recordNode.isNil){
 				recordNode = Synth.tail(RootNode(this), "server-record",
 						[\bufnum, recordBuf.bufnum]);
-			}{
+				CmdPeriod.doOnce {
+					recordNode = nil;
+					if (recordBuf.notNil) { recordBuf.close {|buf| buf.freeMsg }; recordBuf = nil; };
+				}
+			} {
 				recordNode.run(true)
 			};
 			"Recording: %\n".postf(recordBuf.path);
@@ -855,7 +900,7 @@ Server {
 		if(recordNode.notNil) {
 			recordNode.free;
 			recordNode = nil;
-			recordBuf.close({ arg buf; buf.free; });
+			recordBuf.close({ |buf| buf.freeMsg });
 			"Recording Stopped: %\n".postf(recordBuf.path);
 			recordBuf = nil;
 		} {
@@ -884,21 +929,16 @@ Server {
 		SynthDef("server-record", { arg bufnum;
 			DiskOut.ar(bufnum, In.ar(0, recChannels))
 		}).send(this);
-		// cmdPeriod support
-		CmdPeriod.add(this);
 	}
 
 	// CmdPeriod support for Server-scope and Server-record and Server-volume
 	cmdPeriod {
-		if(recordNode.notNil) { recordNode = nil; };
-		if(recordBuf.notNil) { recordBuf.close {|buf| buf.free; }; recordBuf = nil; };
 		addr = addr.recover;
 		this.changed(\cmdPeriod);
-		if(scopeWindow.notNil) {
-			fork { 0.5.wait; scopeWindow.run } // wait until synth is freed
-		}{
-			CmdPeriod.remove(this)
-		};
+	}
+
+	doOnServerTree {
+		if(scopeWindow.notNil) { scopeWindow.run }
 	}
 
 	defaultGroup { ^Group.basicNew(this, 1) }
@@ -976,18 +1016,52 @@ Server {
 
 	volume_ {arg newVolume;
 		volume.volume_(newVolume);
-		}
+	}
 
 	mute {
 		volume.mute;
-		}
+	}
 
 	unmute {
 		volume.unmute;
 	}
 
+	hasShmInterface { ^serverInterface.notNil }
+
 	reorder { arg nodeList, target, addAction=\addToHead;
 		target = target.asTarget;
 		this.sendMsg(62, Node.actionNumberFor(addAction), target.nodeID, *(nodeList.collect(_.nodeID))); //"/n_order"
+	}
+
+	getControlBusValue {|busIndex|
+		if (serverInterface.isNil) {
+			Error("Server-getControlBusValue only supports local servers").throw;
+		} {
+			^serverInterface.getControlBusValue(busIndex)
+		}
+	}
+
+	getControlBusValues {|busIndex, busChannels|
+		if (serverInterface.isNil) {
+			Error("Server-getControlBusValues only supports local servers").throw;
+		} {
+			^serverInterface.getControlBusValues(busIndex, busChannels)
+		}
+	}
+
+	setControlBusValue {|busIndex, value|
+		if (serverInterface.isNil) {
+			Error("Server-getControlBusValue only supports local servers").throw;
+		} {
+			^serverInterface.setControlBusValue(busIndex, value)
+		}
+	}
+
+	setControlBusValues {|busIndex, valueArray|
+		if (serverInterface.isNil) {
+			Error("Server-getControlBusValues only supports local servers").throw;
+		} {
+			^serverInterface.setControlBusValues(busIndex, valueArray)
+		}
 	}
 }

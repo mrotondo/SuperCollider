@@ -37,7 +37,7 @@ MIDIClient {
 
 		this.list;
 
-		UI.registerForShutdown( { this.disposeClient } );
+		ShutDown.add { this.disposeClient };
 
 		Post << "MIDI Sources:" << Char.nl;
 		sources.do({ |x| Post << Char.tab << x << Char.nl });
@@ -108,7 +108,7 @@ MIDIEvent {
 }
 
 MIDIIn {
-	var <>port;
+	var port;
 	classvar <>action,
 	<> noteOn, <> noteOff, <> polytouch,
 	<> control, <> program,
@@ -119,20 +119,20 @@ MIDIIn {
 	<> noteOnList, <> noteOffList, <> polyList,
 	<> controlList, <> programList,
 	<> touchList, <> bendList;
-	
+
 	// safer than global setters
 	*addFuncTo { |what, func|
 		this.perform(what.asSetter, this.perform(what).addFunc(func))
 	}
-	
+
 	*removeFuncFrom { |what, func|
 		this.perform(what.asSetter, this.perform(what).removeFunc(func))
 	}
-	
+
 	*replaceFuncTo { |what, func, newFunc|
 		this.perform(what.asSetter, this.perform(what).replaceFunc(func, newFunc))
 	}
-	
+
 	*waitNoteOn { arg port, chan, note, veloc;
 		var event;
 		event = MIDIEvent(\noteOn, port, chan, note, veloc, thisThread);
@@ -304,10 +304,6 @@ MIDIIn {
 	}
 	*disconnectByUID {arg inport, uid;
 		_DisconnectMIDIIn
-	}
-
-	*new { arg port;
-		^super.new.port_(port)
 	}
 
 	*prDispatchEvent { arg eventList, status, port, chan, b, c;

@@ -9,13 +9,7 @@ Spawner : Pattern {
 	}
 
 	suspend { | stream |
-		var index = priorityQ.array.indexOf(stream);
-		if (index.notNil) {
-			priorityQ.array.put(index, nil );
-			^stream
-		 } {
-		 	^nil
-		 };
+		priorityQ.removeValue(stream);
 	}
 
 	suspendAll {
@@ -53,7 +47,7 @@ Spawner : Pattern {
 			priorityQ.notEmpty
 		},{
 			stream = priorityQ.pop;
-			outevent = stream.next(event);
+			outevent = stream.next(event).asEvent;
 
 			if (outevent.isNil, {
 				nexttime = priorityQ.topPriority;

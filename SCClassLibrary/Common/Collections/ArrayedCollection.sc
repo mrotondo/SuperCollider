@@ -275,7 +275,7 @@ ArrayedCollection : SequenceableCollection {
 	}
 	normalizeSum {
 		_ArrayNormalizeSum
-		^(this / this.sum)
+		^(this * this.sum.reciprocal)
 	}
 	normalize { arg min=0.0, max=1.0;
 		var minItem = this.minItem;
@@ -376,48 +376,6 @@ ArrayedCollection : SequenceableCollection {
 	*iota { arg ... sizes;
 		^(0..sizes.product-1).reshape(*sizes)
 	}
-	*fill2D { arg rows, cols, function;
-		var array = this.new(rows);
-		rows.do{|row|
-			var array2 = this.new(cols);
-			cols.do{|col|
-				array2 = array2.add(function.(row, col))
-			};
-			array = array.add(array2);
-		};
-		^array
-	}
-	*fill3D { arg planes, rows, cols, function;
-		var array = this.new(planes);
-		planes.do{|plane|
-			var array2 = this.new(rows);
-			rows.do{|row|
-				var array3 = this.new(cols);
-				cols.do{|col|
-					array3 = array3.add(function.(plane, row, col))
-				};
-				array2 = array2.add(array3);
-			};
-			array = array.add(array2);
-		};
-		^array
-	}
-	*fillND { arg dimensions, function, args=[]; // args are private
-		var n = dimensions.first;
-		var array = this.new(n);
-		var argIndex = args.size;
-		args = args ++ 0;
-		if(dimensions.size <= 1) {
-			n.do { |i| array.add(function.valueArray(args.put(argIndex, i))) };
-		} {
-			dimensions = dimensions.drop(1);
-			n.do { |i|
-				var array2 = this.fillND(dimensions, function, args.put(argIndex, i));
-				array = array.add(array2);
-			}
-		};
-		^array
-	}
 
 
 	// random distribution table
@@ -479,6 +437,10 @@ RawArray : ArrayedCollection {
 		} {
 			this.shouldNotImplement(thisMethod);
 		}
+	}
+
+	powerset {
+		^this.as(Array).powerset
 	}
 }
 

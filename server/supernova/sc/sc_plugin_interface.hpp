@@ -30,14 +30,12 @@
 #include "SC_World.h"
 
 #include <boost/scoped_array.hpp>
-#include <boost/thread/pthread/mutex.hpp>
+#include <boost/thread/mutex.hpp>
+
+#include "../../common/SC_SndFileHelpers.hpp"
 
 namespace nova
 {
-
-int headerFormatFromString(const char *name);
-int sampleFormatFromString(const char* name);
-
 
 class sc_done_action_handler
 {
@@ -75,9 +73,10 @@ public:
     void update_nodegraph(void);
 
 protected:
-    typedef rt_pool_allocator<int> Alloc;
-    std::vector<server_node*, Alloc> done_nodes, pause_nodes, resume_nodes;
-    std::vector<abstract_group*, Alloc> freeAll_nodes, freeDeep_nodes;
+    typedef rt_pool_allocator<server_node*> server_node_alloc;
+    typedef rt_pool_allocator<abstract_group*> abstract_group_alloc;
+    std::vector<server_node*, server_node_alloc> done_nodes, pause_nodes, resume_nodes;
+    std::vector<abstract_group*, abstract_group_alloc> freeAll_nodes, freeDeep_nodes;
 
 private:
     spin_lock cmd_lock; /* multiple synths can be scheduled for removal, so we need to guard this
@@ -88,7 +87,7 @@ class sc_plugin_interface:
     public sc_done_action_handler
 {
 public:
-    void initialize(class server_arguments const & args);
+    void initialize(class server_arguments const & args, float * control_busses);
     void reset_sampling_rate(int sr);
 
     sc_plugin_interface(void):
@@ -187,7 +186,7 @@ public:
             count = world.mNumAudioBusChannels - bus;
 
         for (size_t i = 0; i != count; ++i)
-            controlbus_set_unchecked(i, value);
+            controlbus_set_unchecked(bus + i, value);
     }
 
     sample controlbus_get(uint32_t bus)
@@ -231,7 +230,7 @@ private:
     bool synths_to_initialize;
 
     void initialize_synths_perform(void);
-    std::vector<abstract_synth*, rt_pool_allocator<synth_ptr> > uninitialized_synths;
+    std::vector<abstract_synth*, rt_pool_allocator<abstract_synth*> > uninitialized_synths;
     /* @} */
 };
 

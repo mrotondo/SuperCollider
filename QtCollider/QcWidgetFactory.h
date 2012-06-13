@@ -1,6 +1,6 @@
 /************************************************************************
 *
-* Copyright 2010 Jakob Leben (jakob.leben@gmail.com)
+* Copyright 2010-2012 Jakob Leben (jakob.leben@gmail.com)
 *
 * This file is part of SuperCollider Qt GUI.
 *
@@ -25,6 +25,7 @@
 #include "QcObjectFactory.h"
 #include "QWidgetProxy.h"
 
+#include <QMetaMethod>
 #include <QLayout>
 
 template <class QWIDGET>
@@ -32,25 +33,69 @@ class QcWidgetFactory : public QcObjectFactory<QWIDGET>
 {
 public:
 
-  virtual QObjectProxy *newInstance( PyrObject *scObject, QList<QVariant> & arguments ) {
+  virtual QObjectProxy *newInstance( PyrObject *scObject, QtCollider::Variant arg[10] ) {
 
-    int argc = arguments.count();
+    // Omit the first two arguments - parent and bounds
 
-    // check if parent arg is valid;
+    QWIDGET *w;
 
-    QObjectProxy *parentProxy = argc > 0 ? arguments[0].value<QObjectProxy*>() : 0;
+    if( arg[2].type() == QMetaType::Void ) {
+      w = new QWIDGET;
+    }
+    else {
+      QObject *obj = QWIDGET::staticMetaObject.newInstance(
+        arg[2].asGenericArgument(),
+        arg[3].asGenericArgument(),
+        arg[4].asGenericArgument(),
+        arg[5].asGenericArgument(),
+        arg[6].asGenericArgument(),
+        arg[7].asGenericArgument(),
+        arg[8].asGenericArgument(),
+        arg[9].asGenericArgument()
+      );
 
-    // create the widget
+      w = qobject_cast<QWIDGET*>(obj);
+      if( !w ) {
+        qcNoConstructorMsg( QcObjectFactory<QWIDGET>::metaObject(), 8, &arg[2] );
+        return 0;
+      }
+    }
 
-    QWIDGET *widget = new QWIDGET();
-    QWidget *w = widget; // template parameter type-safety
+    // NOTE: performance: it is completely equal if parent is passed
+    // in constructor, or set later, but for some reason it is cheaper
+    // if it is set here, before setting other stuff like geometry, etc.
 
-    QWidgetProxy *proxy = new QWidgetProxy ( w, scObject );
+    QObjectProxy *parentProxy( arg[0].value<QObjectProxy*>() );
+    QWidget *parent = parentProxy ? qobject_cast<QWidget*>( parentProxy->object() ) : 0;
+
+    if( parent )
+    {
+      const QMetaObject *mo = parent->metaObject();
+      int mi = mo->indexOfMethod( "addChild(QWidget*)" );
+      bool ok;
+      if( mi >= 0 )
+      {
+          QMetaMethod mm = mo->method( mi );
+          ok = mm.invoke( parent, Q_ARG(QWidget*, w) );
+          if(!ok)
+          {
+              qcErrorMsg("Could not set parent!");
+              delete w;
+              return 0;
+          }
+      }
+      else
+      {
+          if(parent->layout())
+              parent->layout()->addWidget(w);
+          else
+              w->setParent( parent );
+      }
+    }
 
     // set requested geometry
 
-    QRect r;
-    if( argc > 1 ) r = arguments[1].value<QRect>();
+    QRect r( arg[1].value<QRectF>().toRect() );
     if( r.size().isEmpty() ) r.setSize( w->sizeHint() );
 
     w->setGeometry( r );
@@ -59,32 +104,29 @@ public:
 
     w->setAcceptDrops( true );
 
-    // do custom initialization
+    // ensure visible:
 
-    initialize( proxy, widget, arguments ); // use template parameter type
+    if(parent && parent->isVisible()) w->show();
 
-    // set parent
+    // create the proxy:
 
-    QWidget *parent = parentProxy ? qobject_cast<QWidget*>( parentProxy->object() ) : 0;
+    QObjectProxy *prox( proxy(w, scObject) );
 
-    if( parent ) {
-
-      // Ok, we have the parent, so stuff the child in
-
-      const QMetaObject *mo = parent->metaObject();
-      bool ok = mo->invokeMethod( parent, "addChild", Q_ARG( QWidget*, w ) );
-
-      if( !ok ) w->setParent( parent );
-
-      w->show();
-    }
-
-    return proxy;
+    return prox;
   }
 
 protected:
 
-  virtual void initialize( QWidgetProxy *, QWIDGET *, QList<QVariant> & ) {};
+  virtual QObjectProxy * proxy( QWIDGET *w, PyrObject *sc_obj )
+  {
+    QWidgetProxy *prox( new QWidgetProxy( w, sc_obj ) );
+    initialize( prox, w );
+    return prox;
+  }
+
+  virtual void initialize( QWidgetProxy *proxy, QWIDGET *obj ) {};
 };
+
+#define QC_DECLARE_QWIDGET_FACTORY( QWIDGET ) QC_DECLARE_FACTORY( QWIDGET, QcWidgetFactory<QWIDGET> )
 
 #endif

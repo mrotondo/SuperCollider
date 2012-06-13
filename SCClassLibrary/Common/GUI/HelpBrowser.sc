@@ -6,13 +6,14 @@ HelpBrowser {
 	var <>homeUrl;
 	var <window;
 	var webView;
-	var animCount = 0;
+	var loading = false;
 	var srchBox;
 	var openNewWin;
+	var rout;
 
 	*initClass {
 		StartUp.add {
-			NotificationCenter.register(SCDoc, \docMapDidUpdate, this) {
+			NotificationCenter.register(SCDoc, \didIndexAllDocs, this) {
 				if(WebView.implClass.respondsTo(\clearCache)) {
 					WebView.clearCache;
 				}
@@ -23,10 +24,6 @@ HelpBrowser {
 	*instance {
 		if( singleton.isNil ) {
 			singleton = this.new;
-			singleton.window.onClose = {
-				singleton.stopAnim;
-				singleton = nil;
-			};
 		};
 		^singleton;
 	}
@@ -39,27 +36,49 @@ HelpBrowser {
 	}
 
 	*goTo {|url|
-		if(openNewWindows,{this.new},{this.instance}).goTo(url);
+		this.front.goTo(url);
 	}
 
-	*openBrowser {
-		this.goTo(SCDoc.helpTargetDir++"/Browse.html");
+	*front {
+		var w = if(openNewWindows,{this.new},{this.instance});
+		w.window.front;
+		^w;
 	}
-	*openSearch {|text|
+
+	*openBrowsePage {|category|
+		category = if(category.notNil) {"#"++category} {""};
+		this.goTo(SCDoc.helpTargetDir++"/Browse.html"++category);
+	}
+	*openSearchPage {|text|
 		text = if(text.notNil) {"#"++text} {""};
 		this.goTo(SCDoc.helpTargetDir++"/Search.html"++text);
 	}
 	*openHelpFor {|text|
-		this.goTo(SCDoc.findHelpFile(text));
+		var w = this.front;
+		{ w.startAnim; w.goTo(SCDoc.findHelpFile(text)) }.fork(AppClock);
 	}
-
+	*openHelpForMethod {|method|
+		var cls = method.ownerClass;
+		var met = method.name.asString;
+		if(cls.isMetaClass) {
+			cls = cls.name.asString.drop(5);
+			met = "*"++met;
+		} {
+			cls = cls.name.asString;
+			met = "-"++met;
+		};
+		this.goTo(SCDoc.helpTargetDir+/+"Classes"+/+cls++".html#"++met);
+	}
+	*getOldWrapUrl {|url|
+		var c;
+		^("file://" ++ SCDoc.helpTargetDir +/+ "OldHelpWrapper.html#"++url++"?"++
+		SCDoc.helpTargetDir +/+ if((c=url.basename.split($.).first).asSymbol.asClass.notNil)
+			{"Classes" +/+ c ++ ".html"}
+			{"Guides/WritingHelp.html"})
+	}
+	cmdPeriod { rout.play(AppClock) }
 	goTo {|url, brokenAction|
-		var newPath, oldPath, plainTextExts = #[".sc",".scd",".txt",".schelp"], c;
-
-		//FIXME: since multiple scdoc queries can be running at the same time,
-		//it would be best to create a queue and run them in order, but only use the url from the last.
-
-		window.front;
+		var newPath, oldPath, plainTextExts = #[".sc",".scd",".txt",".schelp"];
 
 		plainTextExts.do {|x|
 			if(url.endsWith(x)) {
@@ -67,30 +86,41 @@ HelpBrowser {
 			}
 		};
 
+		window.front;
 		this.startAnim;
 
 		brokenAction = brokenAction ? {SCDoc.helpTargetDir++"/BrokenLink.html#"++url};
-		Routine {
+
+		rout = Routine {
 			try {
 				url = SCDoc.prepareHelpForURL(url) ?? brokenAction;
 				#newPath, oldPath = [url,webView.url].collect {|x|
 					if(x.notEmpty) {x.findRegexp("(^\\w+://)?([^#]+)(#.*)?")[1..].flop[1][1]}
 				};
 				// detect old helpfiles and open them in OldHelpWrapper
-				if(block{|break| Help.do {|key,path| if(url.endsWith(path)) {break.value(true)}}; false}) {
-					url = "file://" ++ SCDoc.helpTargetDir +/+ "OldHelpWrapper.html#"++url++"?"++
-					SCDoc.helpTargetDir +/+ if((c=url.basename.split($.).first).asSymbol.asClass.notNil)
-						{"Classes" +/+ c ++ ".html"}
-						{"Guides/WritingHelp.html"}
+				if(
+					block{|break|
+						Help.do {|key, path|
+							if(url.endsWith(path)) {
+								break.value(true)
+							}
+						}; false
+					}
+				) {
+					url = HelpBrowser.getOldWrapUrl(url)
 				};
 				webView.url = url;
 				// needed since onLoadFinished is not called if the path did not change:
 				if(newPath == oldPath) {webView.onLoadFinished.value};
+				webView.focus;
 			} {|err|
 				webView.html = err.errorString;
 				err.throw;
 			};
+			CmdPeriod.remove(this);
+			rout = nil;
 		}.play(AppClock);
+		CmdPeriod.add(this);
 	}
 
 	goHome { this.goTo(homeUrl); }
@@ -118,6 +148,13 @@ HelpBrowser {
 
 		window = Window.new( bounds: winRect ).name_("SuperCollider Help");
 
+		window.onClose = {
+			this.stopAnim;
+			if(singleton == this) {
+				singleton = nil;
+			};
+		};
+
 		toolbar = ();
 
 		h = strh + vPad;
@@ -136,8 +173,8 @@ HelpBrowser {
 		x = x + w;
 		w = 200;
 		srchBox = TextField.new( window, Rect(x,y,w,h) ).resize_(1);
-		if(srchBox.respondsTo(\setProperty)) {
-			srchBox.setProperty(\toolTip,"Smart quick help lookup. Prefix with # to just search.");
+		if(GUI.current.id == \qt) {
+			srchBox.toolTip = "Smart quick help lookup. Prefix with # to just search.";
 		};
 		srchBox.action = {|x|
 			if(x.string.notEmpty) {
@@ -193,7 +230,8 @@ HelpBrowser {
 		if(webView.respondsTo(\setFontFamily)) {
 			webView.setFontFamily(\fixed, Platform.case(
 				\osx, { "Monaco" },
-				\linux, { "Andale Mono" }
+				\linux, { "Andale Mono" },
+				{ "Monospace" }
 			))
 		};
 
@@ -217,6 +255,9 @@ HelpBrowser {
 		};
 		if(webView.respondsTo(\onReload_)) {
 			webView.onReload = {|wv, url|
+				if(WebView.implClass.respondsTo(\clearCache)) {
+					WebView.clearCache;
+				};
 				this.goTo(url);
 			};
 		};
@@ -240,8 +281,8 @@ HelpBrowser {
 				view.tryPerform(\evaluateJavaScript,"selectLine()");
 			};
 		};
-		window.view.keyDownAction = { arg view, char, mods;
-			if( ((char.ascii == 6) && mods.isCtrl) || (char == $f && mods.isCmd) ) {
+		window.view.keyDownAction = { arg view, char, mods, uni, kcode, key;
+			if( ((key == 70) && mods.isCtrl) || (char == $f && mods.isCmd) ) {
 				toggleFind.value;
 			};
 			if(char.ascii==27) {
@@ -252,29 +293,35 @@ HelpBrowser {
 		toolbar[\Back].action = { this.goBack };
 		toolbar[\Forward].action = { this.goForward };
 		toolbar[\Reload].action = { this.goTo( webView.url ) };
-		txtFind.action = { |x| webView.findText( x.string ); };
+		if(GUI.id === \cocoa) {
+			txtFind.action = { |x| webView.focus; AppClock.sched(0, {webView.findText( x.string );}) };
+		} {
+			txtFind.action = { |x| webView.findText( x.string ) };
+		};
 	}
 
 	openTextFile {|path|
 		var win, winRect, txt, file, fonts;
 		path = path.replace("%20"," ").findRegexp("(^\\w+://)?([^#]+)(#.*)?")[1..].flop[1][1];
-		if(Document.implementationClass.notNil) {
-			^Document.open(path);
-		};
-		^path.openOS;
+		if(File.exists(path)) {
+			path.openDocument;
+		} {
+			webView.url = SCDoc.helpTargetDir++"/BrokenLink.html#"++path;
+			window.front;
+		}
 	}
 
 	startAnim {
 		var progress = [">---","->--","-->-","--->"];
-		animCount = animCount + 1;
-		if(animCount==1) {
+		if(loading.not) {
+			loading = true;
 			Routine {
 				block {|break|
 					loop {
 						progress.do {|p|
 							window.name = ("Loading"+p);
 							0.3.wait;
-							if(animCount==0) {break.value};
+							if(loading.not) {break.value};
 						};
 					};
 				};
@@ -283,15 +330,8 @@ HelpBrowser {
 		};
 	}
 	stopAnim {
-		if(animCount>0) {
-			animCount = animCount - 1;
-		};
+		loading = false;
 	}
 
 }
 
-+ Help {
-	gui {
-		HelpBrowser.instance.goHome;
-	}
-}

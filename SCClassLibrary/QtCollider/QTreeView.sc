@@ -1,6 +1,8 @@
 QTreeView : QView {
+  var <itemPressedAction;
+  var <onItemChanged;
 
-  *qtClass { ^"QcTreeWidget" }
+  *qtClass { ^'QcTreeWidget' }
 
   columns_ { arg labels; this.setProperty( \columns, labels ); }
   columns { ^this.getProperty( \columns ); }
@@ -37,6 +39,26 @@ QTreeView : QView {
     this.invokeMethod( \sort, [column, descending] )
   }
 
+  itemPressedAction_ { arg action;
+    if(itemPressedAction.notNil) {
+      this.disconnectFunction( 'itemPressedAction()', itemPressedAction );
+    };
+    if(action.notNil) {
+      this.connectFunction( 'itemPressedAction()', action );
+    };
+    itemPressedAction = action;
+  }
+
+  onItemChanged_ { arg hook;
+    if(onItemChanged.notNil) {
+      this.disconnectFunction( 'currentItemChanged()', onItemChanged );
+    };
+    if(hook.notNil) {
+      this.connectFunction( 'currentItemChanged()', hook );
+    };
+    onItemChanged = hook;
+  }
+
 /*
   NOTE:
   These methods can only operate on top level items
@@ -57,12 +79,8 @@ QTreeView : QView {
   }
 */
 
-  background { ^this.palette.baseColor; }
-  background_ { arg color;
-    var p = this.palette;
-    p.baseColor = color;
-    this.palette = p;
-  }
+  background { ^this.palette.base; }
+  background_ { arg color; this.palette = this.palette.base_(color) }
 
 /////////// PRIVATE:
 
@@ -124,32 +142,32 @@ QTreeViewItem {
     ^treeView.invokeMethod( \strings, this );
   }
 
+  strings_ { arg strings;
+    strings.do { |string, column| this.setString(column,string) };
+  }
+
   setString { arg column, string;
     treeView.invokeMethod( \setText, [this,column,string] );
   }
 
-  setStrings { arg strings;
-    strings.do { |string, column| this.setString(column,string) };
+  colors_ { arg colors;
+    treeView.prForEachColumnDataPair( colors, {
+      |column,color| this.setColor(column,color);
+    } );
   }
 
   setColor { arg column, color;
     treeView.invokeMethod( \setColor, [this,column,color] );
   }
 
-  setColors { arg colors;
-    treeView.prForEachColumnDataPair( colors, {
-      |column,color| this.setColor(column,color);
+  textColors_ { arg textColors;
+    treeView.prForEachColumnDataPair( textColors, {
+      |column,color| this.setTextColor(column,color);
     } );
   }
 
   setTextColor { arg column, color;
     treeView.invokeMethod( \setTextColor, [this,column,color] );
-  }
-
-  setTextColors { arg textColors;
-    treeView.prForEachColumnDataPair( textColors, {
-      |column,color| this.setTextColor(column,color);
-    } );
   }
 
   setView { arg column, view;

@@ -29,6 +29,7 @@
 #include "PyrObjectProto.h"
 #include "GC.h"
 #include <new>
+#include <string>
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -73,7 +74,7 @@ long gInliningLevel;
 
 int compileErrors = 0;
 int numOverwrites = 0;
-char overwriteMsg[OVERWRITEMSGBUFSIZE] = "";
+std::string overwriteMsg;
 
 extern bool compilingCmdLine;
 extern int errLineOffset, errCharPosOffset;
@@ -146,7 +147,7 @@ void initParser()
 {
 	compileErrors = 0;
 	numOverwrites = 0;
-	overwriteMsg[0] = 0;
+	overwriteMsg.clear();
 }
 
 void finiParser()
@@ -805,7 +806,7 @@ void PyrClassNode::compile(PyrSlot *result)
 	indexType = getIndexType(this);
 	//postfl("%s %d\n", slotRawSymbol(&mClassName->mSlot)->name, indexType);
 
-	if ((long)superclassobj == -1) {
+	if ((size_t)superclassobj == -1) {
 		// redundant error message removed:
 		//error("Can't find superclass of '%s'\n", slotRawSymbol(&mClassName->mSlot)->name);
 		//nodePostErrorLine(node);
@@ -1242,19 +1243,16 @@ void PyrMethodNode::compile(PyrSlot *result)
 	if (oldmethod) {
 		++numOverwrites;
 
-		char extPath[1024];
-
 		// accumulate overwrite message onto the string buffer
-		asRelativePath(gCompilingFileSym->name, extPath);
-		size_t prevMsgSize = strlen(overwriteMsg);
-		snprintf(overwriteMsg + prevMsgSize, OVERWRITEMSGBUFSIZE - prevMsgSize,
-			"%s:%s\t'%s'",
-			slotRawSymbol(&slotRawClass(&oldmethod->ownerclass)->name)->name, slotRawSymbol(&oldmethod->name)->name,
-			extPath);
-		asRelativePath(slotRawSymbol(&oldmethod->filenameSym)->name, extPath);
-		prevMsgSize = strlen(overwriteMsg);
-		snprintf(overwriteMsg + prevMsgSize, OVERWRITEMSGBUFSIZE - prevMsgSize,
-			"\t'%s'\n", extPath);
+		overwriteMsg
+			.append(slotRawSymbol(&slotRawClass(&oldmethod->ownerclass)->name)->name)
+			.append(":")
+			.append(slotRawSymbol(&oldmethod->name)->name)
+			.append("\t")
+			.append(gCompilingFileSym->name)
+			.append("\t")
+			.append(slotRawSymbol(&oldmethod->filenameSym)->name)
+			.append("\n");
 
 		method = oldmethod;
 		freePyrSlot(&method->code);
@@ -2527,6 +2525,7 @@ void compileIfNilMsg(PyrCallNodeBase2* node, bool flag)
 	PyrParseNode* arg1 = node->mArglist;
 
 	if (numArgs < 2) {
+		COMPILENODE(arg1, &dummy, false);
 		compileTail();
 		compileOpcode(opSendSpecialMsg, numArgs);
 		compileByte(opmIf);
@@ -2897,10 +2896,16 @@ void compileWhileMsg(PyrCallNodeBase2* node)
 		whileByteCodeLen = byteCodeLength(whileByteCodes);
 		compileAndFreeByteCodes(whileByteCodes);
 
-		exprByteCodeLen = byteCodeLength(exprByteCodes);
-		compileJump(opcJumpIfFalsePushNil, exprByteCodeLen + 3);
-
-		compileAndFreeByteCodes(exprByteCodes);
+		if (exprByteCodes) {
+			exprByteCodeLen = byteCodeLength(exprByteCodes);
+			compileJump(opcJumpIfFalsePushNil, exprByteCodeLen + 3);
+			compileAndFreeByteCodes(exprByteCodes);
+		} else {
+			exprByteCodeLen = 1;
+			compileJump(opcJumpIfFalsePushNil, exprByteCodeLen + 3);
+			// opcJumpBak does a drop..
+			compileOpcode(opPushSpecialValue, opsvNil);
+		}
 
 		compileJump(opcJumpBak, exprByteCodeLen + whileByteCodeLen + 4);
 

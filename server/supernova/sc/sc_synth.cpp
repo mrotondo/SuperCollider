@@ -24,8 +24,7 @@
 #include "sc_ugen_factory.hpp"
 #include "../server/server.hpp"
 
-namespace nova
-{
+namespace nova {
 
 sc_synth::sc_synth(int node_id, sc_synth_prototype_ptr const & prototype):
     abstract_synth(node_id, prototype), trace(0), unit_buffers(0)
@@ -52,29 +51,33 @@ sc_synth::sc_synth(int node_id, sc_synth_prototype_ptr const & prototype):
     const size_t constants_count = synthdef.constants.size();
 
     /* we allocate one memory chunk */
+    const size_t wire_buffer_alignment = 64; // align to cache line boundaries
     const size_t alloc_size = prototype->memory_requirement();
 
-    const size_t sample_alloc_size = world.mBufLength * synthdef.buffer_count + 64;  /* allocate 64 samples more than required */
+    const size_t sample_alloc_size = world.mBufLength * synthdef.buffer_count
+        + wire_buffer_alignment /* for alignment */;
 
-    char * chunk = (char*)rt_pool.malloc(alloc_size + sample_alloc_size*sizeof(sample));
-    if (chunk == NULL)
+    char * raw_chunk = (char*)rt_pool.malloc(alloc_size + sample_alloc_size*sizeof(sample));
+    if (raw_chunk == NULL)
         throw std::bad_alloc();
+
+    linear_allocator allocator(raw_chunk);
 
     /* prepare controls */
     mNumControls = parameter_count;
-    mControls = (float*)chunk;     chunk += sizeof(float) * parameter_count;
-    mControlRates = (int*)chunk;   chunk += sizeof(int) * parameter_count;
-    mMapControls = (float**)chunk; chunk += sizeof(float*) * parameter_count;
+    mControls     = allocator.alloc<float>(parameter_count);
+    mControlRates = allocator.alloc<int>(parameter_count);
+    mMapControls  = allocator.alloc<float*>(parameter_count);
 
     /* initialize controls */
     for (size_t i = 0; i != parameter_count; ++i) {
         mControls[i] = synthdef.parameters[i]; /* initial parameters */
-        mMapControls[i] = &mControls[i]; /* map to control values */
+        mMapControls[i] = &mControls[i];       /* map to control values */
         mControlRates[i] = 0;                  /* init to 0*/
     }
 
     /* allocate constant wires */
-    mWire = (Wire*)chunk;          chunk += sizeof(Wire) * constants_count;
+    mWire = allocator.alloc<Wire>(constants_count);
     for (size_t i = 0; i != synthdef.constants.size(); ++i) {
         Wire * wire = mWire + i;
         wire->mFromUnit = 0;
@@ -85,17 +88,18 @@ sc_synth::sc_synth(int node_id, sc_synth_prototype_ptr const & prototype):
 
     unit_count = prototype->unit_count();
     calc_unit_count = prototype->calc_unit_count();
-    units = (Unit**)chunk; chunk += unit_count * sizeof(Unit*);
-    calc_units = (Unit**)chunk; chunk += calc_unit_count * sizeof(Unit*);
-    unit_buffers = (sample*)chunk; chunk += sample_alloc_size*sizeof(sample);
+    units        = allocator.alloc<Unit*>(unit_count);
+    calc_units   = allocator.alloc<Unit*>(calc_unit_count);
+    unit_buffers = allocator.alloc<sample>(sample_alloc_size);
 
-    unit_buffers = (sample*) ((size_t(unit_buffers) + 63) & ~63); /* next multiple of 64 */
+    const int alignment_mask = wire_buffer_alignment - 1;
+    unit_buffers = (sample*) ((size_t(unit_buffers) + alignment_mask) & ~alignment_mask);     /* next aligned pointer */
 
     /* allocate unit generators */
     sc_factory->allocate_ugens(synthdef.graph.size());
     for (size_t i = 0; i != synthdef.graph.size(); ++i) {
         sc_synthdef::unit_spec_t const & spec = synthdef.graph[i];
-        units[i] = spec.prototype->construct(spec, this, &sc_factory->world, chunk);
+        units[i] = spec.prototype->construct(spec, this, &sc_factory->world, allocator);
     }
 
     for (size_t i = 0; i != synthdef.calc_unit_indices.size(); ++i) {
@@ -103,7 +107,7 @@ sc_synth::sc_synth(int node_id, sc_synth_prototype_ptr const & prototype):
         calc_units[i] = units[index];
     }
 
-    assert((char*)mControls + alloc_size <= chunk); // ensure the memory boundaries
+    assert((char*)mControls + alloc_size <= allocator.alloc<char>()); // ensure the memory boundaries
 }
 
 namespace
@@ -221,31 +225,110 @@ void sc_synth::run(void)
     perform();
 }
 
+extern spin_lock log_guard;
+
+#if defined(__GNUC__) && !defined(__APPLE__)
+#define thread_local __thread
+#endif
+
+#ifdef thread_local
+static thread_local boost::array<char, 32768> trace_scratchpad;
+#else
+static boost::array<char, 32768> trace_scratchpad;
+#endif
+
+struct scratchpad_printer
+{
+    scratchpad_printer(char * str):
+        string(str), position(0)
+    {
+        clear();
+    }
+
+    void printf(const char *fmt, ...)
+    {
+        va_list vargs;
+        va_start(vargs, fmt);
+        printf(fmt, vargs);
+    }
+
+    const char * data(void) const
+    {
+        return string;
+    }
+
+    bool shouldFlush(void) const
+    {
+        return position + 1024 > 32768;
+    }
+
+    void clear(void)
+    {
+        position = 0;
+        string[0] = '\0'; // zero-terminated
+    }
+
+private:
+    void printf(const char *fmt, va_list vargs)
+    {
+        position += vsprintf(string + position, fmt, vargs);
+    }
+
+    char * string;
+    int position;
+};
+
 void sc_synth::run_traced(void)
 {
-    using namespace std;
+    trace = 0;
 
-    log_printf("\nTRACE %d  %s    #units: %d\n", id(), this->prototype_name(), calc_unit_count);
+#ifndef thread_local
+    spin_lock::scoped_lock lock (log_guard);
+#endif
+
+    scratchpad_printer printer(trace_scratchpad.data());
+
+    printer.printf("\nTRACE %d  %s    #units: %d\n", id(), this->prototype_name(), calc_unit_count);
 
     for (size_t i = 0; i != calc_unit_count; ++i) {
         Unit * unit = calc_units[i];
 
         sc_ugen_def * def = reinterpret_cast<sc_ugen_def*>(unit->mUnitDef);
-        log_printf("  unit %zd %s\n    in ", i, def->name());
-        for (uint16_t j=0; j!=unit->mNumInputs; ++j)
-            log_printf(" %g", unit->mInBuf[j][0]);
-        log("\n");
+        printer.printf("  unit %zd %s\n    in ", i, def->name());
+        for (uint16_t j=0; j!=unit->mNumInputs; ++j) {
+            printer.printf(" %g", unit->mInBuf[j][0]);
+            if (printer.shouldFlush()) {
+#ifdef thread_local
+                spin_lock::scoped_lock lock (log_guard);
+#endif
+                log(printer.data());
+                printer.clear();
+            }
+        }
+
+        printer.printf("\n");
 
         (unit->mCalcFunc)(unit, unit->mBufLength);
 
-        log("    out");
-        for (int j=0; j<unit->mNumOutputs; ++j)
-            log_printf(" %g", unit->mOutBuf[j][0]);
-        log("\n");
+        printer.printf("    out");
+        for (int j=0; j<unit->mNumOutputs; ++j) {
+            printer.printf(" %g", unit->mOutBuf[j][0]);
+            if (printer.shouldFlush()) {
+#ifdef thread_local
+                spin_lock::scoped_lock lock (log_guard);
+#endif
+                log(printer.data());
+                printer.clear();
+            }
+        }
+        printer.printf("\n");
     }
-    std::cout << std::endl;
+    printer.printf("\n");
 
-    trace = 0;
+#ifdef thread_local
+    spin_lock::scoped_lock lock (log_guard);
+#endif
+    log(printer.data());
 }
 
 } /* namespace nova */

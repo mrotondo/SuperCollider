@@ -43,14 +43,17 @@ class nova_server * instance = 0;
 
 nova_server::nova_server(server_arguments const & args):
     scheduler<nova::scheduler_hook, thread_init_functor>(args.threads, !args.non_rt),
+    server_shared_memory_creator(args.port(), args.control_busses),
     buffer_manager(1024), sc_osc_handler(args), dsp_queue_dirty(false)
 {
     assert(instance == 0);
     io_interpreter.start_thread();
-    sc_factory = new sc_ugen_factory;
     instance = this;
+    sc_factory = new sc_ugen_factory;
+    sc_factory->initialize(args, server_shared_memory_creator::shm->get_control_busses());
 
-    /** todo: backend may force sample rate */
+
+    /** first guess: needs to be updated, once the backend is started */
     time_per_tick = time_tag::from_samples(args.blocksize, args.samplerate);
 
     start_receive_thread();
@@ -80,6 +83,7 @@ void nova_server::prepare_backend(void)
     _mm_setcsr(_mm_getcsr() | 0x40);
 #endif
 
+    time_per_tick = time_tag::from_samples(blocksize, get_samplerate());
 }
 
 nova_server::~nova_server(void)
@@ -101,6 +105,9 @@ abstract_synth * nova_server::add_synth(const char * name, int id, node_position
 
     if (ret == 0)
         return 0;
+
+    if (constraints.second == replace)
+        notification_node_ended(constraints.first);
 
     node_graph::add_node(ret, constraints);
     update_dsp_queue();
@@ -210,13 +217,12 @@ void thread_init_functor::operator()(int thread_index)
 {
     name_current_thread(thread_index);
 
-    if (rt)
-    {
+    if (rt) {
         bool success = true;
 #ifdef NOVA_TT_PRIORITY_RT
 
 #ifdef JACK_BACKEND
-        int priority = instance->max_realtime_priority();
+        int priority = instance->realtime_priority();
         if (priority < 0)
             success = false;
 #else
@@ -247,7 +253,7 @@ void thread_init_functor::operator()(int thread_index)
     }
 
     if (!thread_set_affinity(thread_index))
-        std::cerr << "Warning: cannot set thread affinity of dsp thread" << std::endl;
+        std::cerr << "Warning: cannot set thread affinity of audio helper thread" << std::endl;
 }
 
 void io_thread_init_functor::operator()() const
@@ -274,9 +280,22 @@ void synth_prototype_deleter::dispose(synth_prototype * ptr)
 void realtime_engine_functor::init_thread(void)
 {
     if (!thread_set_affinity(0))
-        std::cerr << "Warning: cannot set thread affinity of jack thread" << std::endl;
+        std::cerr << "Warning: cannot set thread affinity of main audio thread" << std::endl;
 
     name_current_thread(0);
 }
+
+void realtime_engine_functor::log_(const char * str)
+{
+    instance->log_printf(str);
+}
+
+void realtime_engine_functor::log_printf_(const char * fmt, ...)
+{
+    va_list vargs;
+    va_start(vargs, fmt);
+    instance->log_printf(fmt, vargs);
+}
+
 
 } /* namespace nova */

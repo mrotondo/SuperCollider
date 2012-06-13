@@ -52,6 +52,7 @@ public:
     static SafePtr<Item> safePtr( QTreeWidgetItem* );
     static void initialize( VMGlobals *, PyrObject *, const SafePtr<Item> & );
     static int finalize( VMGlobals *, PyrObject * );
+    bool operator< ( const QTreeWidgetItem & other ) const;
   private:
     SafePtr<Item> _safePtr;
   };
@@ -90,7 +91,8 @@ public:
 Q_SIGNALS:
 
   void action();
-  void returnPressed();
+  void itemPressedAction();
+  void currentItemChanged();
 
 public:
 
@@ -102,13 +104,11 @@ public:
   VariantList columns() const;
   void setColumns( const VariantList & );
 
-private Q_SLOTS:
+protected:
 
-  void onCurrentItemChanged();
+  virtual void keyPressEvent( QKeyEvent * );
 
 private:
-
-  bool eventFilter( QObject *, QEvent * );
 
   QTreeWidgetItem * _itemOnPress;
   bool _emitAction;

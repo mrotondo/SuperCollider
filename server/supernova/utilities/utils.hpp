@@ -44,11 +44,7 @@ typedef unsigned int uint;
 
 #include "malloc_aligned.hpp"
 
-#ifdef __GNUC__
-#define PURE __attribute__((pure))
-#else
-#define PURE /*__attribute__((pure))*/
-#endif
+#include "function_attributes.h"
 
 
 namespace nova
@@ -212,8 +208,24 @@ PURE inline std::size_t string_hash(const char * str)
     return ret;
 }
 
+struct linear_allocator
+{
+    linear_allocator(char * chunk):
+        chunk(chunk)
+    {}
+
+    template <typename T>
+    T * alloc(int count = 1)
+    {
+        T * ret = reinterpret_cast<T*>(chunk);
+        chunk += count * sizeof(T);
+        return ret;
+    }
+
+private:
+    char * chunk;
+};
 
 } /* namespace nova */
 
-#undef PURE
 #endif /* UTILITIES_UTILS_HPP */

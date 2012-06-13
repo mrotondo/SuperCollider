@@ -237,6 +237,12 @@ Emacs {
 		Class.initClassTree(AbstractResponderFunc);
 		Class.initClassTree(OSCresponder);
 		Class.initClassTree(Server);
+
+		Platform.makeServerWindowAction = {|aServer, aWindow| aServer.makeEmacsWindow };
+		Platform.makeSynthDescWindowAction = {|aSynthDesc| aSynthDesc.makeEmacsWindow };
+		Platform.openHelpFileAction = {|aString| aString.openHelpFileEmacs };
+		Platform.openHTMLFileAction = {|aString| aString.openHTMLFileEmacs };
+
 		requestHandlers = IdentityDictionary.new;
 		requestAllocator = StackNumberAllocator(0, 128);
 		keys = IdentityDictionary.new;
@@ -250,12 +256,13 @@ Emacs {
 			thisProcess.platform.declareFeature( \emacs );
 			outStream = CollStream.on(String.new);
 			outFile = File(outFileName, "w");
-			UI.registerForShutdown({
+			ShutDown.add {
+				Emacs.evalLispExpression( "(sclang-on-library-shutdown)" );
 				if (outFile.notNil) {
 					outFile.close;
 					outFile = nil
 				};
-			});
+			};
 			// initialize servers
 			newServer = { | server update |
 				SimpleController(server)

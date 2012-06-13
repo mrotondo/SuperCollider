@@ -281,6 +281,7 @@ void SigOsc_next_a(SigOsc *unit, int inNumSamples);
 
 void FSinOsc_Ctor(FSinOsc *unit);
 void FSinOsc_next(FSinOsc *unit, int inNumSamples);
+void FSinOsc_next_i(FSinOsc *unit, int inNumSamples);
 
 void PSinGrain_Ctor(PSinGrain *unit);
 void PSinGrain_next(PSinGrain *unit, int inNumSamples);
@@ -1310,7 +1311,10 @@ void SigOsc_next_a(SigOsc *unit, int inNumSamples)
 
 void FSinOsc_Ctor(FSinOsc *unit)
 {
-	SETCALC(FSinOsc_next);
+	if (INRATE(0) == calc_ScalarRate)
+		SETCALC(FSinOsc_next_i);
+	else
+		SETCALC(FSinOsc_next);
 	unit->m_freq = ZIN0(0);
 	float iphase = ZIN0(1);
 	float w = unit->m_freq * unit->mRate->mRadiansPerSample;
@@ -1351,7 +1355,38 @@ void FSinOsc_next(FSinOsc *unit, int inNumSamples)
 	//Print("y %g %g  b1 %g\n", y1, y2, b1);
 	unit->m_y1 = y1;
 	unit->m_y2 = y2;
-	unit->m_b1 = b1;
+}
+
+void FSinOsc_next_i(FSinOsc *unit, int inNumSamples)
+{
+#ifdef __GNUC__
+	float * __restrict__ out = ZOUT(0);
+#else
+	float * out = ZOUT(0);
+#endif
+	double b1 = unit->m_b1;
+
+	double y0;
+	double y1 = unit->m_y1;
+	double y2 = unit->m_y2;
+	//Print("y %g %g  b1 %g\n", y1, y2, b1);
+	//Print("%d %d\n", unit->mRate->mFilterLoops, unit->mRate->mFilterRemain);
+	LOOP(unit->mRate->mFilterLoops,
+		y0 = b1 * y1 - y2;
+		y2 = b1 * y0 - y1;
+		y1 = b1 * y2 - y0;
+		ZXP(out) = y0;
+		ZXP(out) = y2;
+		ZXP(out) = y1;
+	);
+	LOOP(unit->mRate->mFilterRemain,
+		ZXP(out) = y0 = b1 * y1 - y2;
+		y2 = y1;
+		y1 = y0;
+	);
+	//Print("y %g %g  b1 %g\n", y1, y2, b1);
+	unit->m_y1 = y1;
+	unit->m_y2 = y2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1613,6 +1648,31 @@ void SinOsc_next_iak(SinOsc *unit, int inNumSamples)
 	unit->m_phasein = phasein;
 }
 
+void SinOsc_next_iai(SinOsc *unit, int inNumSamples)
+{
+	float *out = ZOUT(0);
+	float *freqin = ZIN(0);
+
+	float *table0 = ft->mSineWavetable;
+	float *table1 = table0 + 1;
+
+	int32 phase = unit->m_phase;
+	int32 lomask = unit->m_lomask;
+
+	float cpstoinc = unit->m_cpstoinc;
+	float radtoinc = unit->m_radtoinc;
+	float phasemod = unit->m_phasein;
+
+	LOOP1(inNumSamples,
+		  int32 pphase = phase + (int32)(radtoinc * phasemod);
+		  float z = lookupi1(table0, table1, pphase, lomask);
+		  phase += (int32)(cpstoinc * ZXP(freqin));
+		  ZXP(out) = z;
+	);
+	unit->m_phase = phase;
+}
+
+
 
 void SinOsc_Ctor(SinOsc *unit)
 {
@@ -1623,15 +1683,14 @@ void SinOsc_Ctor(SinOsc *unit)
 	unit->m_lomask = (tableSize2 - 1) << 3;
 
 	if (INRATE(0) == calc_FullRate) {
-		if (INRATE(1) == calc_FullRate) {
-			//Print("next_iaa\n");
+		if (INRATE(1) == calc_FullRate)
 			SETCALC(SinOsc_next_iaa);
-			unit->m_phase = 0;
-		} else {
-			//Print("next_iak\n");
+		else if (INRATE(1) == calc_BufRate)
 			SETCALC(SinOsc_next_iak);
-			unit->m_phase = 0;
-		}
+		else
+			SETCALC(SinOsc_next_iai);
+
+		unit->m_phase = 0;
 	} else {
 		if (INRATE(1) == calc_FullRate) {
 			//Print("next_ika\n");
@@ -1664,7 +1723,7 @@ void SinOsc_Ctor(SinOsc *unit)
 
 //////////////!!!
 
-void SinOscFB_next_ik(SinOscFB *unit, int inNumSamples)
+void SinOscFB_next_kk(SinOscFB *unit, int inNumSamples)
 {
 	float *out = ZOUT(0);
 	float freqin = ZIN0(0);
@@ -1695,7 +1754,7 @@ void SinOscFB_next_ik(SinOscFB *unit, int inNumSamples)
 void SinOscFB_Ctor(SinOscFB *unit)
 {
 	//Print("next_ik\n");
-	SETCALC(SinOscFB_next_ik);
+	SETCALC(SinOscFB_next_kk);
 
 	int tableSize2 = ft->mSineSize;
 	unit->m_lomask = (tableSize2 - 1) << 3;
@@ -1706,7 +1765,7 @@ void SinOscFB_Ctor(SinOscFB *unit)
 
 	unit->m_phase = 0;
 
-	SinOscFB_next_ik(unit, 1);
+	SinOscFB_next_kk(unit, 1);
 }
 
 
@@ -2140,20 +2199,25 @@ void COsc_next(COsc *unit, int inNumSamples)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define VOSC_GET_BUF_UNLOCKED \
-const SndBuf *bufs;\
-if (bufnum+1 >= world->mNumSndBufs) { \
-			int localBufNum = bufnum - world->mNumSndBufs; \
-			Graph *parent = unit->mParent; \
-			if(localBufNum <= parent->localBufNum) { \
-				bufs = parent->mLocalSndBufs + localBufNum; \
-			} else { \
-				bufnum = 0; \
-				bufs = world->mSndBufs + bufnum; \
-			} \
-		} else { \
-			bufs = world->mSndBufs + sc_max(0, bufnum); \
-		} \
+#define VOSC_GET_BUF_UNLOCKED						\
+const SndBuf *bufs;									\
+if (bufnum < 0)										\
+	bufnum = 0;										\
+													\
+if (bufnum+1 >= world->mNumSndBufs) {				\
+	int localBufNum = bufnum - world->mNumSndBufs;	\
+	Graph *parent = unit->mParent;					\
+	if(localBufNum <= parent->localBufNum) {		\
+		bufs = parent->mLocalSndBufs + localBufNum; \
+	} else {										\
+		bufnum = 0;									\
+		bufs = world->mSndBufs + bufnum;			\
+	}												\
+} else {											\
+	if (bufnum >= world->mNumSndBufs)				\
+		bufnum = 0;									\
+	bufs = world->mSndBufs + sc_max(0, bufnum);		\
+}
 
 #define VOSC_GET_BUF			\
 	VOSC_GET_BUF_UNLOCKED 		\
@@ -2165,7 +2229,7 @@ void VOsc_Ctor(VOsc *unit)
 
 	float nextbufpos = ZIN0(0);
 	unit->m_bufpos = nextbufpos;
-	uint32 bufnum = (uint32)floor(nextbufpos);
+	int bufnum = sc_floor(nextbufpos);
 	World *world = unit->mWorld;
 
 	VOSC_GET_BUF_UNLOCKED
@@ -2206,9 +2270,8 @@ void VOsc_next_ik(VOsc *unit, int inNumSamples)
 	World *world = unit->mWorld;
 
 	if (bufdiff == 0.f) {
-		float level = cur - floor(cur);
-
-		uint32 bufnum = (int)floor(cur);
+		float level = cur - sc_floor(cur);
+		uint32 bufnum = (int)sc_floor(cur);
 
 		VOSC_GET_BUF
 
@@ -2239,26 +2302,26 @@ void VOsc_next_ik(VOsc *unit, int inNumSamples)
 		int donesmps = 0;
 		int remain = inNumSamples;
 		while (remain) {
-			float level = cur - (float)floor(cur);
+			float level = cur - sc_floor(cur);
 
 			float cut;
 			if (bufdiff > 0.) {
-				cut = sc_min(nextbufpos, (float)floor(cur+1.f));
+				cut = sc_min(nextbufpos, sc_floor(cur+1.f));
 			} else {
-				cut = sc_max(nextbufpos, ceil(cur-1.f));
+				cut = sc_max(nextbufpos, sc_ceil(cur-1.f));
 			}
 
 			float sweepdiff = cut - cur;
 			if (cut == nextbufpos) nsmps = remain;
 			else {
 				float sweep = (float)inNumSamples / bufdiff;
-				nsmps = (int)floor(sweep * sweepdiff + 0.5f) - donesmps;
+				nsmps = (int)sc_floor(sweep * sweepdiff + 0.5f) - donesmps;
 				nsmps = sc_clip(nsmps, 1, remain);
 			}
 
 			float slope = sweepdiff / (float)nsmps;
 
-			uint32 bufnum = (int)floor(cur);
+			int32 bufnum = (int32)sc_floor(cur);
 
 			VOSC_GET_BUF
 
@@ -2302,7 +2365,7 @@ void VOsc3_Ctor(VOsc3 *unit)
 
 	float nextbufpos = ZIN0(0);
 	unit->m_bufpos = nextbufpos;
-	uint32 bufnum = (uint32)floor(nextbufpos);
+	int32 bufnum = (int32)sc_floor(nextbufpos);
 	World *world = unit->mWorld;
 
 	VOSC_GET_BUF
@@ -2345,9 +2408,9 @@ void VOsc3_next_ik(VOsc3 *unit, int inNumSamples)
 	World *world = unit->mWorld;
 
 	if (bufdiff == 0.f) {
-		float level = cur - floor(cur);
+		float level = cur - (int)cur;
 
-		uint32 bufnum = (int)floor(cur);
+		int bufnum = (int)cur;
 
 		VOSC_GET_BUF
 
@@ -2402,27 +2465,26 @@ void VOsc3_next_ik(VOsc3 *unit, int inNumSamples)
 		int nsmps;
 		int donesmps = 0;
 		int remain = inNumSamples;
-		while (remain) {
-			float level = cur - (float)floor(cur);
+		do {
+			float level = cur - sc_trunc(cur);
 
 			float cut;
-			if (bufdiff > 0.) {
-				cut = sc_min(nextbufpos, (float)floor(cur+1.f));
-			} else {
-				cut = sc_max(nextbufpos, ceil(cur-1.f));
-			}
+			if (bufdiff >= 0.)
+				cut = sc_min(nextbufpos, sc_trunc(cur+1.f));
+			else
+				cut = sc_max(nextbufpos, sc_ceil(cur-1.f));
 
 			float sweepdiff = cut - cur;
 			if (cut == nextbufpos) nsmps = remain;
 			else {
 				float sweep = (float)inNumSamples / bufdiff;
-				nsmps = (int)floor(sweep * sweepdiff + 0.5f) - donesmps;
+				nsmps = sc_floor(sweep * sweepdiff + 0.5f) - donesmps;
 				nsmps = sc_clip(nsmps, 1, remain);
 			}
 
 			float slope = sweepdiff / (float)nsmps;
 
-			uint32 bufnum = (int)floor(cur);
+			int bufnum = (int)cur;
 
 			VOSC_GET_BUF
 
@@ -2477,7 +2539,7 @@ void VOsc3_next_ik(VOsc3 *unit, int inNumSamples)
 			donesmps += nsmps;
 			remain -= nsmps;
 			cur = cut;
-		}
+		} while (remain);
 	}
 	unit->m_bufpos = nextbufpos;
 	unit->m_phase1 = phase1;

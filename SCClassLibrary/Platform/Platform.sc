@@ -1,8 +1,11 @@
 Platform
 {
 	classvar defaultStartupFile;
-	var <classLibraryDir, <helpDir, <>recordingsDir, features;
 
+	// IDE actions
+	classvar <>makeServerWindowAction, <>makeSynthDescWindowAction, <>openHelpFileAction, <>openHTMLFileAction;
+
+	var <classLibraryDir, <helpDir, <>recordingsDir, features;
 	var <>devpath;
 
 	*initClass {
@@ -18,7 +21,7 @@ Platform
 
 	name { ^this.subclassResponsibility }
 
-	recompile { ^this.subclassResponsibility }
+	recompile { _Recompile }
 	*case { | ... cases |
 		^thisProcess.platform.name.switch(*cases)
 	}
@@ -41,6 +44,9 @@ Platform
 
 	userConfigDir { _Platform_userConfigDir }
 	*userConfigDir { ^thisProcess.platform.userConfigDir }
+
+	resourceDir { _Platform_resourceDir }
+	*resourceDir { ^thisProcess.platform.resourceDir }
 
 	defaultTempDir { ^this.subclassResponsibility() }
 	*defaultTempDir { ^thisProcess.platform.defaultTempDir }

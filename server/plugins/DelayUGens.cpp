@@ -224,7 +224,6 @@ struct Pluck : public FeedbackDelay, CubicInterpolationUnit
 
 struct LocalBuf : public Unit
 {
-	float m_fbufnum;
 	SndBuf *m_buf;
 };
 
@@ -233,16 +232,10 @@ struct MaxLocalBufs : public Unit
 };
 
 struct SetBuf : public Unit
-{
-	float m_fbufnum;
-	SndBuf *m_buf;
-};
+{};
 
 struct ClearBuf : public Unit
-{
-	float m_fbufnum;
-	SndBuf *m_buf;
-};
+{};
 
 struct DelTapWr : public Unit
 {
@@ -329,14 +322,11 @@ extern "C"
 
 	void LocalBuf_Ctor(LocalBuf *unit);
 	void LocalBuf_Dtor(LocalBuf *unit);
-	void LocalBuf_next(LocalBuf *unit, int inNumSamples);
 
 	void MaxLocalBufs_Ctor(MaxLocalBufs *unit);
 
 	void SetBuf_Ctor(SetBuf *unit);
-	void SetBuf_next(SetBuf *unit, int inNumSamples);
 	void ClearBuf_Ctor(ClearBuf *unit);
-	void ClearBuf_next(ClearBuf *unit, int inNumSamples);
 
 	void BufDelayN_Ctor(BufDelayN *unit);
 	void BufDelayN_next(BufDelayN *unit, int inNumSamples);
@@ -552,6 +542,26 @@ void NumRunningSynths_next(Unit *unit, int inNumSamples)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
+
+#define CTOR_GET_BUF \
+	float fbufnum  = ZIN0(0); \
+	fbufnum = sc_max(0.f, fbufnum); \
+	uint32 bufnum = (int)fbufnum; \
+	World *world = unit->mWorld; \
+	SndBuf *buf; \
+	if (bufnum >= world->mNumSndBufs) { \
+		int localBufNum = bufnum - world->mNumSndBufs; \
+		Graph *parent = unit->mParent; \
+		if(localBufNum <= parent->localBufNum) { \
+			buf = parent->mLocalSndBufs + localBufNum; \
+		} else { \
+			bufnum = 0; \
+			buf = world->mSndBufs + bufnum; \
+		} \
+	} else { \
+		buf = world->mSndBufs + bufnum; \
+	}
+
 void BufSampleRate_next(BufInfoUnit *unit, int inNumSamples)
 {
 	SIMPLE_GET_BUF_SHARED
@@ -561,8 +571,9 @@ void BufSampleRate_next(BufInfoUnit *unit, int inNumSamples)
 void BufSampleRate_Ctor(BufInfoUnit *unit, int inNumSamples)
 {
 	SETCALC(BufSampleRate_next);
-	unit->m_fbufnum = -1e9f;
-	SIMPLE_GET_BUF_SHARED
+	CTOR_GET_BUF
+	unit->m_fbufnum = fbufnum;
+	unit->m_buf = buf;
 	ZOUT0(0) = buf->samplerate;
 }
 
@@ -576,23 +587,25 @@ void BufFrames_next(BufInfoUnit *unit, int inNumSamples)
 void BufFrames_Ctor(BufInfoUnit *unit, int inNumSamples)
 {
 	SETCALC(BufFrames_next);
-	unit->m_fbufnum = -1.f;
-	SIMPLE_GET_BUF_SHARED
+	CTOR_GET_BUF
+	unit->m_fbufnum = fbufnum;
+	unit->m_buf = buf;
 	ZOUT0(0) = buf->frames;
 }
 
 
 void BufDur_next(BufInfoUnit *unit, int inNumSamples)
 {
-	SIMPLE_GET_BUF
+	SIMPLE_GET_BUF_SHARED
 	ZOUT0(0) = buf->frames * buf->sampledur;
 }
 
 void BufDur_Ctor(BufInfoUnit *unit, int inNumSamples)
 {
 	SETCALC(BufDur_next);
-	unit->m_fbufnum = -1e9f;
-	SIMPLE_GET_BUF_SHARED
+	CTOR_GET_BUF
+	unit->m_fbufnum = fbufnum;
+	unit->m_buf = buf;
 	ZOUT0(0) = buf->frames * buf->sampledur;
 }
 
@@ -606,8 +619,9 @@ void BufChannels_next(BufInfoUnit *unit, int inNumSamples)
 void BufChannels_Ctor(BufInfoUnit *unit, int inNumSamples)
 {
 	SETCALC(BufChannels_next);
-	unit->m_fbufnum = -1e9f;
-	SIMPLE_GET_BUF_SHARED
+	CTOR_GET_BUF
+	unit->m_fbufnum = fbufnum;
+	unit->m_buf = buf;
 	ZOUT0(0) = buf->channels;
 }
 
@@ -621,8 +635,9 @@ void BufSamples_next(BufInfoUnit *unit, int inNumSamples)
 void BufSamples_Ctor(BufInfoUnit *unit, int inNumSamples)
 {
 	SETCALC(BufSamples_next);
-	unit->m_fbufnum = -1e9f;
-	SIMPLE_GET_BUF_SHARED
+	CTOR_GET_BUF
+	unit->m_fbufnum = fbufnum;
+	unit->m_buf = buf;
 	ZOUT0(0) = buf->samples;
 }
 
@@ -636,8 +651,9 @@ void BufRateScale_next(BufInfoUnit *unit, int inNumSamples)
 void BufRateScale_Ctor(BufInfoUnit *unit, int inNumSamples)
 {
 	SETCALC(BufRateScale_next);
-	unit->m_fbufnum = -1e9f;
-	SIMPLE_GET_BUF_SHARED
+	CTOR_GET_BUF
+	unit->m_fbufnum = fbufnum;
+	unit->m_buf = buf;
 	ZOUT0(0) = buf->samplerate * unit->mWorld->mFullRate.mSampleDur;
 }
 
@@ -669,6 +685,9 @@ static void LocalBuf_allocBuffer(LocalBuf *unit, SndBuf *buf, int numChannels, i
 	buf->mask1    = buf->mask - 1;	// for oscillators
 	buf->samplerate = unit->mWorld->mSampleRate;
 	buf->sampledur = 1. / buf->samplerate;
+#if SUPERNOVA
+	buf->isLocal  = true;
+#endif
 }
 
 
@@ -680,24 +699,21 @@ void LocalBuf_Ctor(LocalBuf *unit)
 
 	int offset =  unit->mWorld->mNumSndBufs;
 	int bufnum =  parent->localBufNum;
+	float fbufnum;
 
 	if (parent->localBufNum >= parent->localMaxBufNum) {
-		unit->m_fbufnum = -1.f;
-		if(unit->mWorld->mVerbosity > -2){
+		fbufnum = -1.f;
+		if(unit->mWorld->mVerbosity > -2)
 			printf("warning: LocalBuf tried to allocate too many local buffers.\n");
-		}
-
 	} else {
-
-		unit->m_fbufnum = (float) (bufnum + offset);
+		fbufnum = (float) (bufnum + offset);
 		unit->m_buf =  parent->mLocalSndBufs + bufnum;
 		parent->localBufNum = parent->localBufNum + 1;
 
 		LocalBuf_allocBuffer(unit, unit->m_buf, (int)IN0(0), (int)IN0(1));
 	}
 
-	OUT0(0) = unit->m_fbufnum;
-
+	OUT0(0) = fbufnum;
 }
 
 void LocalBuf_Dtor(LocalBuf *unit)
@@ -709,12 +725,9 @@ void LocalBuf_Dtor(LocalBuf *unit)
 		RTFree(unit->mWorld, unit->mParent->mLocalSndBufs);
 		unit->mParent->localMaxBufNum = 0;
 	} else {
-		unit->mParent->localBufNum =  unit->mParent->localBufNum - 1;
+		unit->mParent->localBufNum = unit->mParent->localBufNum - 1;
 	}
 }
-
-// dummy for unit size.
-void LocalBuf_next(LocalBuf *unit, int inNumSamples) {}
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -741,11 +754,11 @@ void MaxLocalBufs_Ctor(MaxLocalBufs *unit)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-void SetBuf_next(SetBuf *unit, int inNumSamples)
+void SetBuf_Ctor(SetBuf *unit)
 {
-	GET_BUF
-	if (!bufData) {
+	OUT0(0) = 0.f;
+	CTOR_GET_BUF
+	if (!buf || !buf->data) {
 		if(unit->mWorld->mVerbosity > -2){
 			Print("SetBuf: no valid buffer\n");
 		}
@@ -758,46 +771,26 @@ void SetBuf_next(SetBuf *unit, int inNumSamples)
 
 	int j = 3;
 	for(int i=offset; i<end; ++j, ++i) {
-		bufData[i] = (float)IN0(j);
+		buf->data[i] = IN0(j);
 	}
-
-}
-
-void SetBuf_Ctor(SetBuf *unit)
-{
-	unit->m_fbufnum = -1.f;
-	SETCALC(SetBuf_next);
-	OUT0(0) = 0.f;
-	SetBuf_next(unit, 0);
 }
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-void ClearBuf_next(ClearBuf *unit, int inNumSamples)
+void ClearBuf_Ctor(ClearBuf *unit)
 {
-	GET_BUF
-	if (!bufData) {
+	OUT0(0) = 0.f;
+	CTOR_GET_BUF
+
+	if (!buf || !buf->data) {
 		if(unit->mWorld->mVerbosity > -2){
 			Print("ClearBuf: no valid buffer\n");
 		}
 		return;
 	}
-	int n = unit->m_buf->samples;
 
-	//bzero(unit->m_buf->data, unit->m_buf->samples * sizeof(float));
-	for (int i=0; i<n; ++i) {
-		bufData[i] = 0.f;
-	}
-}
-
-void ClearBuf_Ctor(ClearBuf *unit)
-{
-	unit->m_fbufnum = -1.f;
-	SETCALC(ClearBuf_next);
-	OUT0(0) = 0.f;
-	ClearBuf_next(unit, 0);
+	Clear(buf->samples, buf->data);
 }
 
 
@@ -2261,7 +2254,7 @@ static inline void DelayN_delay_loop(float * out, const float * in, long & iwrph
 			if (irdphase < 0) {
 				if ((dlywr - dlyrd) > nsmps) {
 #ifdef NOVA_SIMD
-					if ((nsmps & 15) == 0) {
+					if ((nsmps & (nova::vec<float>::size - 1)) == 0) {
 						nova::copyvec_nn_simd(dlywr + ZOFF, in + ZOFF, nsmps);
 						nova::zerovec_na_simd(out + ZOFF, nsmps);
 					} else
@@ -3746,16 +3739,27 @@ void BufAllpassC_next_a_z(BufAllpassC *unit, int inNumSamples)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static void DelayUnit_AllocDelayLine(DelayUnit *unit)
+static bool DelayUnit_AllocDelayLine(DelayUnit *unit, const char * className)
 {
 	long delaybufsize = (long)ceil(unit->m_maxdelaytime * SAMPLERATE + 1.f);
 	delaybufsize = delaybufsize + BUFLENGTH;
 	delaybufsize = NEXTPOWEROFTWO(delaybufsize);  // round up to next power of two
 	unit->m_fdelaylen = unit->m_idelaylen = delaybufsize;
 
-	RTFree(unit->mWorld, unit->m_dlybuf);
+	if (unit->m_dlybuf)
+		RTFree(unit->mWorld, unit->m_dlybuf);
 	unit->m_dlybuf = (float*)RTAlloc(unit->mWorld, delaybufsize * sizeof(float));
+
+	if (unit->m_dlybuf == NULL) {
+		SETCALC(ft->fClearUnitOutputs);
+		ClearUnitOutputs(unit, 1);
+
+		if(unit->mWorld->mVerbosity > -2)
+			Print("Failed to allocate memory for %s ugen.\n", className);
+	}
+
 	unit->m_mask = delaybufsize - 1;
+	return (unit->m_dlybuf != NULL);
 }
 
 template <typename Unit>
@@ -3767,18 +3771,20 @@ static float CalcDelay(Unit *unit, float delaytime)
 }
 
 template <typename Unit>
-static void DelayUnit_Reset(Unit *unit)
+static bool DelayUnit_Reset(Unit *unit, const char * className)
 {
 	unit->m_maxdelaytime = ZIN0(1);
 	unit->m_delaytime = ZIN0(2);
 	unit->m_dlybuf = 0;
 
-	DelayUnit_AllocDelayLine(unit);
+	if (!DelayUnit_AllocDelayLine(unit, className))
+		return false;
 
 	unit->m_dsamp = CalcDelay(unit, unit->m_delaytime);
 
 	unit->m_numoutput = 0;
 	unit->m_iwrphase = 0;
+	return true;
 }
 
 
@@ -3790,13 +3796,16 @@ void DelayUnit_Dtor(DelayUnit *unit)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Unit>
-static void FeedbackDelay_Reset(Unit *unit)
+static bool FeedbackDelay_Reset(Unit *unit, const char * className)
 {
 	unit->m_decaytime = ZIN0(3);
 
-	DelayUnit_Reset(unit);
+	bool allocationSucessful = DelayUnit_Reset(unit, className);
+	if (!allocationSucessful)
+		return false;
 
 	unit->m_feedbk = sc_CalcFeedback(unit->m_delaytime, unit->m_decaytime);
+	return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3916,13 +3925,29 @@ static bool DelayUnit_init_0(DelayUnit *unit)
 		return false;
 }
 
+enum {
+	initializationComplete,
+	initializationIncomplete
+};
+
+template <typename Delay>
+static int Delay_Ctor(Delay *unit, const char *className)
+{
+	bool allocationSucessful = DelayUnit_Reset(unit, className);
+	if (!allocationSucessful)
+		return initializationComplete;
+
+	// optimize for a constant delay of zero
+	if (DelayUnit_init_0(unit))
+		return initializationComplete;
+	return initializationIncomplete;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void DelayN_Ctor(DelayN *unit)
 {
-	DelayUnit_Reset(unit);
-
-	if (DelayUnit_init_0(unit))
+	if (Delay_Ctor(unit, "DelayN") == initializationComplete)
 		return;
 
 	if (INRATE(2) == calc_FullRate)
@@ -4015,9 +4040,7 @@ void DelayN_next_a_z(DelayN *unit, int inNumSamples)
 
 void DelayL_Ctor(DelayL *unit)
 {
-	DelayUnit_Reset(unit);
-
-	if (DelayUnit_init_0(unit))
+	if (Delay_Ctor(unit, "DelayL") == initializationComplete)
 		return;
 
 	if (INRATE(2) == calc_FullRate)
@@ -4064,9 +4087,7 @@ void DelayL_next_a_z(DelayL *unit, int inNumSamples)
 
 void DelayC_Ctor(DelayC *unit)
 {
-	DelayUnit_Reset(unit);
-
-	if (DelayUnit_init_0(unit))
+	if (Delay_Ctor(unit, "DelayC") == initializationComplete)
 		return;
 
 	if (INRATE(2) == calc_FullRate)
@@ -4203,7 +4224,10 @@ inline void FilterX_perform_a(CombX *unit, int inNumSamples, UnitCalcFunc resetF
 
 void CombN_Ctor(CombN *unit)
 {
-	FeedbackDelay_Reset(unit);
+	bool allocationSucessful = FeedbackDelay_Reset(unit, "CombN");
+	if (!allocationSucessful)
+		return;
+
 	if(INRATE(2) == calc_FullRate)
 		SETCALC(CombN_next_a_z);
 	else
@@ -4417,7 +4441,10 @@ void CombN_next_a_z(CombN *unit, int inNumSamples)
 
 void CombL_Ctor(CombL *unit)
 {
-	FeedbackDelay_Reset(unit);
+	bool allocationSucessful = FeedbackDelay_Reset(unit, "CombL");
+	if (!allocationSucessful)
+		return;
+
 	if(INRATE(2) == calc_FullRate)
 		SETCALC(CombL_next_a_z);
 	else
@@ -4461,7 +4488,10 @@ void CombL_next_a_z(CombL *unit, int inNumSamples)
 
 void CombC_Ctor(CombC *unit)
 {
-	FeedbackDelay_Reset(unit);
+	bool allocationSucessful = FeedbackDelay_Reset(unit, "CombC");
+	if (!allocationSucessful)
+		return;
+
 	if(INRATE(2) == calc_FullRate)
 		SETCALC(CombC_next_a_z);
 	else
@@ -4507,7 +4537,10 @@ void CombC_next_a_z(CombC *unit, int inNumSamples)
 
 void AllpassN_Ctor(AllpassN *unit)
 {
-	FeedbackDelay_Reset(unit);
+	bool allocationSucessful = FeedbackDelay_Reset(unit, "AllpassN");
+	if (!allocationSucessful)
+		return;
+
 	if(INRATE(2) == calc_FullRate)
 		SETCALC(AllpassN_next_a_z);
 	else
@@ -4728,7 +4761,10 @@ void AllpassN_next_a_z(AllpassN *unit, int inNumSamples)
 
 void AllpassL_Ctor(AllpassL *unit)
 {
-	FeedbackDelay_Reset(unit);
+	bool allocationSucessful = FeedbackDelay_Reset(unit, "AllpassL");
+	if (!allocationSucessful)
+		return;
+
 	if(INRATE(2) == calc_FullRate)
 		SETCALC(AllpassL_next_a_z);
 	else
@@ -4773,7 +4809,10 @@ void AllpassL_next_a_z(AllpassL *unit, int inNumSamples)
 
 void AllpassC_Ctor(AllpassC *unit)
 {
-	FeedbackDelay_Reset(unit);
+	bool allocationSucessful = FeedbackDelay_Reset(unit, "AllpassC");
+	if (!allocationSucessful)
+		return;
+
 	if(INRATE(2) == calc_FullRate)
 		SETCALC(AllpassC_next_a_z);
 	else
@@ -4991,6 +5030,7 @@ void ScopeOut_next(ScopeOut *unit, int inNumSamples)
 
 void ScopeOut_Ctor(ScopeOut *unit)
 {
+
 	unit->m_fbufnum = -1e9;
 	unit->m_framepos = 0;
 	unit->m_framecount = 0;
@@ -5001,6 +5041,89 @@ void ScopeOut_Ctor(ScopeOut *unit)
 void ScopeOut_Dtor(ScopeOut *unit)
 {
 	TAKEDOWN_IN
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct ScopeOut2 : public Unit
+{
+	ScopeBufferHnd m_buffer;
+	float **m_inBuffers;
+	int m_maxPeriod;
+	uint32 m_phase;
+};
+
+
+void ScopeOut2_next(ScopeOut2 *unit, int inNumSamples)
+{
+	if( !unit->m_buffer ) return;
+
+	const int inputOffset = 3;
+	int numChannels = unit->mNumInputs - inputOffset;
+
+	uint32 period = (uint32)ZIN0(2);
+	uint32 framepos = unit->m_phase;
+
+	period = std::max((uint32)inNumSamples, std::min(unit->m_buffer.maxFrames, period));
+
+	if( framepos >= period ) framepos = 0;
+
+	int remain = period - framepos, wrap = 0;
+
+	if(inNumSamples <= remain)
+		remain = inNumSamples;
+	else
+		wrap = inNumSamples - remain;
+
+	for (int i = 0; i != numChannels; ++i) {
+		float * inBuf = unit->m_buffer.channel_data(i);
+		const float * in = IN(inputOffset + i);
+
+		memcpy(inBuf + framepos, in, remain * sizeof(float));
+	}
+
+	if(framepos + inNumSamples >= period)
+		(*ft->fPushScopeBuffer)(unit->mWorld, unit->m_buffer, period);
+
+	if (wrap) {
+		for (int i = 0; i != numChannels; ++i) {
+			float * inBuf = unit->m_buffer.channel_data(i);
+			const float * in = IN(inputOffset + i);
+			memcpy(inBuf, in + remain, wrap * sizeof(float));
+		}
+	}
+
+	framepos += inNumSamples;
+	if (framepos >= period)
+		framepos = wrap;
+
+	unit->m_phase = framepos;
+}
+
+void ScopeOut2_Ctor(ScopeOut2 *unit)
+{
+	uint32 numChannels = unit->mNumInputs - 3;
+	uint32 scopeNum = (uint32)ZIN0(0);
+	uint32 maxFrames = (uint32)ZIN0(1);
+
+	bool ok = (*ft->fGetScopeBuffer)(unit->mWorld, scopeNum, numChannels, maxFrames, unit->m_buffer);
+
+	if( !ok ) {
+		if( unit->mWorld->mVerbosity > -1 && !unit->mDone)
+			Print("ScopeOut2: Requested scope buffer unavailable! (index: %d, channels: %d, size: %d)\n",
+				  scopeNum, numChannels, maxFrames);
+	}
+	else {
+		unit->m_phase = 0;
+	}
+
+	SETCALC(ScopeOut2_next);
+}
+
+void ScopeOut2_Dtor(ScopeOut2 *unit)
+{
+	if( unit->m_buffer )
+		(*ft->fReleaseScopeBuffer)(unit->mWorld, unit->m_buffer);
 }
 
 
@@ -6040,7 +6163,10 @@ void Pluck_Ctor(Pluck *unit)
 	//float maxdelaytime = unit->m_maxdelaytime = IN0(2);
 	//float delaytime = unit->m_delaytime = IN0(3);
 	unit->m_dlybuf = 0;
-	DelayUnit_AllocDelayLine(unit);
+	bool allocationSucessful = DelayUnit_AllocDelayLine(unit, "Pluck");
+	if (!allocationSucessful)
+		return;
+
 	unit->m_dsamp = CalcDelay(unit, unit->m_delaytime);
 
 	unit->m_numoutput = 0;
@@ -7088,11 +7214,14 @@ static void DelTapWr_first(DelTapWr *unit, int inNumSamples)
     
 	// zero out the buffer!
 #ifdef NOVA_SIMD
-	uint32 unroll = bufSamples & (~15);
-	nova::zerovec_simd(bufData, unroll);
+	if (nova::vec<float>::is_aligned(bufData)) {
+		uint32 unroll = bufSamples & (~(nova::vec<float>::size - 1));
+		nova::zerovec_simd(bufData, unroll);
 
-	uint32 remain = bufSamples - unroll;
-	Clear(remain, bufData + unroll);
+		uint32 remain = bufSamples - unroll;
+		Clear(remain, bufData + unroll);
+	} else
+		Clear(bufSamples, bufData);
 #else
 	Clear(bufSamples, bufData);
 #endif
@@ -7565,6 +7694,7 @@ PluginLoad(Delay)
 	DefineSimpleUnit(GrainTap);
 	DefineSimpleCantAliasUnit(TGrains);
 	DefineDtorUnit(ScopeOut);
+	DefineDtorUnit(ScopeOut2);
 	DefineDelayUnit(Pluck);
 
 	DefineSimpleUnit(DelTapWr);

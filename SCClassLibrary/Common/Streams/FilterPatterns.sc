@@ -15,9 +15,9 @@ Pn : FilterPattern {
 	storeArgs { ^[pattern,repeats, key] }
 	embedInStream { | event |
 		if(key.isNil) {
-			repeats.value.do { event = pattern.embedInStream(event) };
+			repeats.value(event).do { event = pattern.embedInStream(event) };
 		} {
-			repeats.value.do {
+			repeats.value(event).do {
 				event = pattern.embedInStream(event);
 				event[key] = true;
 			};
@@ -64,7 +64,7 @@ Pcollect : FuncFilterPattern {
 		loop {
 			outval = stream.next(inval);
 			if (outval.isNil) { ^inval };
-			inval = yield(func.value(outval));
+			inval = yield(func.value(outval, inval));
 		}
 	}
 	asStream {
@@ -80,7 +80,7 @@ Pselect : FuncFilterPattern {
 			while ({
 				outval = stream.next(inval);
 				if (outval.isNil) { ^inval };
-				func.value(outval).not
+				func.value(outval, inval).not
 			});
 			inval = yield(outval);
 		}
@@ -98,7 +98,7 @@ Preject : FuncFilterPattern {
 			while ({
 				outval = stream.next(inval);
 				if (outval.isNil) { ^inval };
-				func.value(outval);
+				func.value(outval, inval);
 			});
 			inval = yield(outval);
 		}
@@ -113,8 +113,8 @@ Pfset : FuncFilterPattern {
 	*new { |func, pattern, cleanupFunc|
 		^super.new(func, pattern).cleanupFunc_(cleanupFunc)
 	}
-	embedInStream { arg event;
-		var inevent, cleanup = EventStreamCleanup.new;
+	embedInStream { arg inevent;
+		var event, cleanup = EventStreamCleanup.new;
 			// cleanup should actually not be passed in
 			// but retaining (temporarily) for backward compatibility
 		var envir = Event.make({ func.value(cleanup) });
@@ -122,22 +122,22 @@ Pfset : FuncFilterPattern {
 		var once = true;
 
 		loop {
-			event = event.copy;
-			event.putAll(envir);
-			inevent = stream.next(event);
+			inevent = inevent.copy;
+			inevent.putAll(envir);
+			event = stream.next(inevent);
 			if(once) {
 				cleanup.addFunction(event, { |flag|
 					envir.use({ cleanupFunc.value(flag) });
 				});
 				once = false;
 			};
-			if (inevent.isNil) {
-				^cleanup.exit(event)
+			if (event.isNil) {
+				^cleanup.exit(inevent)
 			} {
-				cleanup.update(inevent);
+				cleanup.update(event);
 			};
-			event = yield(inevent);
-			if(event.isNil) { ^cleanup.exit(inevent) }
+			inevent = yield(event);
+			if(inevent.isNil) { ^cleanup.exit(event) }
 		};
 	}
 }
@@ -277,7 +277,7 @@ Pstretch : FilterPattern {
 		var evtStream = pattern.asStream;
 
 		loop {
-			inevent = evtStream.next(event);
+			inevent = evtStream.next(event).asEvent;
 			if (inevent.isNil) { ^event };
 			val = valStream.next(inevent);
 			if (val.isNil) { ^event };
@@ -300,7 +300,7 @@ Pstretchp : Pstretch {
 		var evtStream, val, inevent, delta;
 		var valStream = value.asStream;
 		while {
-			val = valStream.next(event);
+			val = valStream.next(event).asEvent;
 			val.notNil
 		} {
 			evtStream = pattern.asStream;
@@ -427,7 +427,7 @@ Pfindur : FilterPattern {
 
 		cleanup ?? { cleanup = EventStreamCleanup.new };
 		loop {
-			inevent = stream.next(event) ?? { ^event };
+			inevent = stream.next(event).asEvent ?? { ^event };
 			cleanup.update(inevent);
 			delta = inevent.delta;
 			nextElapsed = elapsed + delta;
@@ -460,7 +460,7 @@ Psync : FilterPattern {
 		stream = pattern.asStream;
 
 		loop {
-			inevent = stream.next(event);
+			inevent = stream.next(event).asEvent;
 			if(inevent.isNil) {
 				if(localquant.notNil) {
 					event = Event.silent(elapsed.roundUp(localquant) - elapsed, event);
@@ -792,12 +792,6 @@ Pdiff : FilterPattern {
 			prev = next;
 		}
 		^event
-	}
-}
-
-Pflow : FilterPattern {
-	*new {
-		Error("Pflow was replaced. please use Pstep instead").throw;
 	}
 }
 

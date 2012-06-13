@@ -105,6 +105,42 @@ Bus {
 		^["/c_getn",index, count ? numChannels];
 	}
 
+	getSynchronous {
+		if (not(this.isSettable)) {
+			Error("Bus-getSynchronous only works for control-rate busses").throw;
+		} {
+			^server.getControlBusValue(index);
+		}
+	}
+
+	getnSynchronous {|count|
+		if (not(this.isSettable)) {
+			Error("Bus-getnSynchronous only works for control-rate busses").throw;
+		} {
+			^server.getControlBusValues(index, count ? numChannels);
+		}
+	}
+
+	setSynchronous { |... values|
+		if (not(this.isSettable)) {
+			Error("Bus-setSynchronous only works for control-rate busses").throw;
+		} {
+			if (values.size == 1) {
+				server.setControlBusValue(index, values[0])
+			} {
+				server.setControlBusValues(index, values)
+			}
+		}
+	}
+
+	setnSynchronous {|values|
+		if (not(this.isSettable)) {
+			Error("Bus-setnSynchronous only works for control-rate busses").throw;
+		} {
+			server.setControlBusValues(index, values)
+		}
+	}
+
 	fill { arg value,numChans;
 		// could throw an error if numChans > numChannels
 		server.sendBundle(nil,
@@ -167,16 +203,12 @@ Bus {
 		stream << this.class.name << "(" <<*
 			[rate.asCompileString, index, numChannels, server.asCompileString]  <<")"
 	}
-
 	== { arg aBus;
-		if(aBus === this,{ ^true });
-		^aBus respondsTo: #[\index, \numChannels, \rate, \server]
-		and: { aBus.index == index
-		and: { aBus.numChannels == numChannels
-		and: { aBus.rate == rate
-		and: { aBus.server === server }}}}
+		^this.compareObject(aBus, #[\index, \numChannels, \rate, \server])
 	}
-	hash { ^index.hash bitXor: numChannels.hash bitXor: rate.hash bitXor: server.hash }
+	hash {
+		^this.instVarHash(#[\index, \numChannels, \rate, \server])
+	}
 
 	isAudioOut { // audio interface
 		^(rate === \audio and: {index < server.options.firstPrivateBus})

@@ -1,6 +1,6 @@
 /************************************************************************
 *
-* Copyright 2010 Jakob Leben (jakob.leben@gmail.com)
+* Copyright 2010-2012 Jakob Leben (jakob.leben@gmail.com)
 *
 * This file is part of SuperCollider Qt GUI.
 *
@@ -24,15 +24,17 @@
 
 #include <QPainter>
 
-static QcWidgetFactory<QcLevelIndicator> factory;
+QC_DECLARE_QWIDGET_FACTORY(QcLevelIndicator);
 
-QcLevelIndicator::QcLevelIndicator()
-: _value( 0.f ), _warning(0.6), _critical(0.8),
+QcLevelIndicator::QcLevelIndicator() :
+  QtCollider::Style::Client(this),
+  _value( 0.f ), _warning(0.6), _critical(0.8),
   _peak( 0.f ), _drawPeak( false ),
   _ticks(0), _majorTicks(0),
   _clipped(false)
 {
   _clipTimer = new QTimer( this );
+  _clipTimer->setSingleShot(true);
   _clipTimer->setInterval( 1000 );
   connect( _clipTimer, SIGNAL(timeout()), this, SLOT(clipTimeout()) );
 }
@@ -40,6 +42,7 @@ QcLevelIndicator::QcLevelIndicator()
 void QcLevelIndicator::clipTimeout()
 {
   _clipped = false;
+  update();
 }
 
 
@@ -56,21 +59,26 @@ void QcLevelIndicator::paintEvent( QPaintEvent *e )
 
   float length = vertical ? height() : width();
 
+  float colorValue = _drawPeak ? _peak : _value;
+
+  if( colorValue > _critical ) {
+    _clipTimer->stop();
+    _clipped = true;
+  }
+  else if( _clipped && !_clipTimer->isActive() ) {
+    _clipTimer->start();
+  }
+
   QColor c;
-  if( _clipped || _value >= _critical )
+  if( _clipped )
     c = QColor(255,100,0);
-  else if( _value >= _warning )
+  else if( colorValue > _warning )
     c = QColor( 255, 255, 0 );
   else
     c = QColor( 0, 255, 0 );
 
-  if( _value >= _critical ) {
-    _clipped = true;
-    _clipTimer->start();
-  }
-
   p.fillRect( vertical ? QRectF(0,0,groove,height()) : QRectF(0,0,width(),groove),
-              QColor( 130,130,130 ) );
+              grooveColor() );
 
   QRectF r;
 
@@ -130,15 +138,18 @@ void QcLevelIndicator::paintEvent( QPaintEvent *e )
           + 2;
     QPen pen( QColor( 255, 200, 0 ) );
     pen.setWidth( 2 );
+    pen.setCapStyle( Qt::FlatCap );
     p.setPen( pen );
     if( vertical )
-      p.drawLine( 0.f, val, groove - 1, val );
+      p.drawLine( 0.f, val, groove, val );
     else
-      p.drawLine( val, 0.f, val, groove - 1 );
+      p.drawLine( val, 0.f, val, groove );
   }
 
   if( _ticks ) {
-    p.setPen( QColor( 170, 170, 170 ) );
+    QPen pen( plt.color(QPalette::WindowText) );
+    pen.setCapStyle( Qt::FlatCap );
+    p.setPen(pen);
     float dVal = ( _ticks > 1 ) ? ( length-1) / (float)(_ticks-1) : 0.f;
     float t = 0;
     while( t < _ticks ) {
@@ -152,7 +163,8 @@ void QcLevelIndicator::paintEvent( QPaintEvent *e )
   }
 
   if( _majorTicks ) {
-    QPen pen ( QColor( 170, 170, 170 ) );
+    QPen pen ( plt.color(QPalette::WindowText) );
+    pen.setCapStyle( Qt::FlatCap );
     pen.setWidth( 3 );
     p.setPen( pen );
     float dVal = ( _majorTicks > 1 ) ? (length-3) / (float)(_majorTicks-1) : 0.f;
@@ -166,16 +178,4 @@ void QcLevelIndicator::paintEvent( QPaintEvent *e )
       t++;
     }
   }
-
-  if( vertical ) {
-    r = rect().adjusted(0,0,0,-1);
-    r.setWidth( groove - 1 );
-  } else {
-    r = rect().adjusted(0,0,-1,0);
-    r.setHeight( groove - 1 );
-  }
-
-  p.setBrush( Qt::NoBrush );
-  p.setPen( plt.color( QPalette::Dark ) );
-  p.drawRect( r );
 }

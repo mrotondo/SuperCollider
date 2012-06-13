@@ -39,6 +39,10 @@ Volume {
 		isPlaying = false;
 		isPrepping = false;
 		gui = false;
+		ServerBoot.add ({
+				isPlaying = false;
+				ampSynth = nil;
+		}, server)
 	}
 
 	sendDef {

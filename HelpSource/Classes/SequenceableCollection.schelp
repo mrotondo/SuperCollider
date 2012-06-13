@@ -25,6 +25,8 @@ code::
 Array.fib(5);
 Array.fib(5, 2, 32); // start from 32 with step 2.
 ::
+argument::size
+the number of values in the collection
 argument::a
 the starting step value
 argument::b
@@ -216,6 +218,26 @@ code::
 [[1, 2, 3], [4, 5, 6], [7, 8]].flop; // shorter array wraps
 [].flop; // result is always 2-d.
 ::
+Note that the innermost arrays are not copied:
+code::
+a = [1, 2];
+x = [[[a, 5], [a, 10]], [[a, 50, 60]]].flop;
+a[0] = pi;
+x // pi is everywhere
+::
+
+
+method::flopWith
+Flop with a user defined function. Can be used to collect over several collections in parallel.
+code::
+[[1, 2, 3], [4, 5, 6]].flopWith(_+_);
+[[1, 2, 3], 1, [7, 8]].flopWith{ |a,b,c| a+b+c }; // shorter array wraps
+
+// typical use case (pseudocode)
+[synths, buffers].flopWith{ |a,b| a.set(\buf, b) }
+::
+argument::func
+A function taking as many arguments as elements in the array.
 
 method::flopTogether
 Invert rows and colums in a an array of dimensional Collections (turn inside out), so that they all match up in size, but remain separated.
@@ -230,6 +252,57 @@ a = flopTogether(
 
 a.collect(_.size); // sizes are the same
 a.collect(_.shape) // shapes can be different
+::
+
+
+method::flopDeep
+argument::rank
+The depth (dimension) from which the array is inverted inside-out.
+
+Fold dimensions in a multi-dimensional Collection (turn inside out).
+code::
+[[1, 2, 3], [[41, 52], 5, 6]].flopDeep(2);
+[[1, 2, 3], [[41, 52], 5, 6]].flopDeep(1);
+[[1, 2, 3], [[41, 52], 5, 6]].flopDeep(0);
+[[1, 2, 3], [[41, 52], 5, 6]].flopDeep; // without argument, flop from the deepest level
+
+[[[10, 100, 1000], 2, 3], [[41, 52], 5, 6]].flopDeep(2); // shorter array wraps
+[].flopDeep(1); // result is always one dimension higher.
+[[]].flopDeep(4);
+::
+
+note::Note that, just like in flop, the innermost arrays (deeper than rank) are not copied.::
+
+code::
+a = [1, 2];
+x = [[[a, 5], [a, 10]], [[a, 50, 60]]].flopDeep(1);
+a[0] = pi;
+x // pi is everywhere
+::
+
+method::maxSizeAtDepth
+Returns the maximum size of all subarrays at a certain depth (dimension)
+
+argument::rank
+The depth at which the size of the arrays is measured
+
+code::
+[[1, 2, 3], [[41, 52], 5, 6], 1, 2, 3].maxSizeAtDepth(2);
+[[1, 2, 3], [[41, 52], 5, 6], 1, 2, 3].maxSizeAtDepth(1);
+[[1, 2, 3], [[41, 52], 5, 6], 1, 2, 3].maxSizeAtDepth(0);
+[].maxSizeAtDepth(0);
+[[]].maxSizeAtDepth(0);
+[[]].maxSizeAtDepth(1);
+::
+
+method::maxDepth
+Returns the maximum depth of all subarrays.
+
+argument::max
+Internally used only.
+
+code::
+[[1, 2, 3], [[41, 52], 5, 6], 1, 2, 3].maxDepth
 ::
 
 method::resamp0
@@ -370,7 +443,7 @@ subsection::Math Support - Unary Messages
 
 All of the following messages send the message link::#-performUnaryOp:: to the receiver with the unary message selector as an argument.
 
-method::neg, reciprocal, bitNot, abs, asFloat, asInt, ceil, floor, frac, sign, squared, cubed, sqrt, exp, midicps, cpsmidi, midiratio, ratiomidi, ampdb, dbamp, octcps, cpsoct, log, log2, log10, sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, rand, rand2, linrand, bilinrand, sum3rand, distort, softclip, nyqring, coin, even, odd, isPositive, isNegative, isStrictlyPositive, real, imag, magnitude, magnitudeApx, phase, angle, rho, theta, asFloat, asInteger
+method::neg, reciprocal, bitNot, abs, asFloat, asInt, ceil, floor, frac, sign, squared, cubed, sqrt, exp, midicps, cpsmidi, midiratio, ratiomidi, ampdb, dbamp, octcps, cpsoct, log, log2, log10, sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, rand, rand2, linrand, bilinrand, sum3rand, distort, softclip, coin, even, odd, isPositive, isNegative, isStrictlyPositive, real, imag, magnitude, magnitudeApx, phase, angle, rho, theta, asFloat, asInteger
 
 method::performUnaryOp
 Creates a new collection of the results of applying the selector to all elements in the receiver.
@@ -383,7 +456,7 @@ subsection::Math Support - Binary Messages
 
 All of the following messages send the message link::#-performBinaryOp:: to the receiver with the binary message selector and the second operand as arguments.
 
-method::+, -, *, /, div, %, **, min, max, <, <=, >, >=, &, |, bitXor, lcm, gcd, round, trunc, atan2, hypot, >>, +>>, fill, ring1, ring2, ring3, ring4, difsqr, sumsqr, sqrdif, absdif, amclip, scaleneg, clip2, excess, <!, rrand, exprand
+method::+, -, *, /, div, %, **, min, max, <, <=, >, >=, &, |, bitXor, lcm, gcd, round, trunc, atan2, hypot, >>, +>>, ring1, ring2, ring3, ring4, difsqr, sumsqr, sqrdif, absdif, amclip, scaleneg, clip2, excess, <!, rrand, exprand
 
 method::performBinaryOp
 Creates a new collection of the results of applying the selector with the operand to all elements in the receiver. If the operand is a collection then elements of that collection are paired with elements of the receiver.
@@ -399,9 +472,17 @@ The result depends on the objects in the collection, but the main use case is fo
 
 See also link::Guides/Multichannel-Expansion::
 
-method::clip, wrap, fold, prune, linlin, linexp, explin, expexp, lincurve, curvelin, range, exprange, unipolar, bipolar, lag, lag2, lag3, lagud, lag2ud, lag3ud, varlag, blend, checkBadValues
+method::clip, wrap, fold, prune, linlin, linexp, explin, expexp, lincurve, curvelin, range, exprange, unipolar, bipolar, lag, lag2, lag3, lagud, lag2ud, lag3ud, varlag, slew, blend, checkBadValues
 Calls code:: this.multiChannelPerform(selector, *args) :: where selector is the name of the message.
 
+method::multichannelExpandRef
+This method is called internally on inputs to UGens that take multidimensional arrays, like link::Classes/Klank:: and it allows proper multichannel expansion even in those cases. For SequenceableCollection, this returns the collection itself, assuming that it contains already a number of Refs. See link::Classes/Ref:: for the corresponding method implementation.
+argument::rank
+The depth at which the list is expanded. For instance the Klank spec has a rank of 2. For more examples, see link::Classes/SequenceableCollection#-flopDeep::
+code::
+`([[[100, 200], 500], nil, [[[0.01, 0.3], 0.8]]]).multichannelExpandRef(2);
+[`[[100, 200], nil, [0.2, 0.8]], `[[130, 202], nil, [0.2, 0.5]]].multichannelExpandRef(2);
+::
 
 subsection:: Rhythm-lists
 method:: convertRhythm

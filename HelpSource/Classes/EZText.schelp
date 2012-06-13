@@ -115,11 +115,11 @@ argument:: stringColor
 An instance of link::Classes/Color::. The code::stringColor:: of the label and unit views.
 argument:: textBackground
 An instance of link::Classes/Color::. The code::background:: of the textField.
-argument:: numStringColor
+argument:: textStringColor
 An instance of link::Classes/Color::. The code::stringColor:: of the textField.
-argument:: numNormalColor
+argument:: textNormalColor
 An instance of link::Classes/Color::. The code::normalColor:: of the textField.
-argument:: numTypingColor
+argument:: textTypingColor
 An instance of link::Classes/Color::. The code::typingColor:: of the textField.
 argument:: background
 An instance of link::Classes/Color::. The code::background:: of the enclosing view.
@@ -194,7 +194,7 @@ Tdef(\text).set(\note, [0, 2, 7], \dur, { [0.1, 0.2].choose });
 w = Window("EZTexts", Rect(200, 400, 304, 120)).front;
 w.addFlowLayout;
 
-TdefEditor(Tdef(\text), 0, w: w);
+TdefGui(Tdef(\text), 0, w);
 Tdef(\text).envir.keysValuesDo { |k, v|
 	EZText(w, Rect(0,0,300,40), k, { |ez|
 		Tdef(\text).envir.put(*[k, ez.value].postcs);
