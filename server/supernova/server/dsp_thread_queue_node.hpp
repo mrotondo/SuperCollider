@@ -27,8 +27,7 @@
 #include "server/synth.hpp"
 #include "../sc/sc_synth.hpp"
 
-namespace nova
-{
+namespace nova {
 
 /* optimized for sc_synth, since we don't support other types of synths for now */
 class queue_node_data
@@ -67,7 +66,7 @@ private:
 template <typename Alloc = std::allocator<queue_node_data> >
 class dsp_queue_node
 {
-    typedef std::vector<queue_node_data, Alloc> node_container;
+    typedef std::vector<queue_node_data, typename Alloc::template rebind<queue_node_data>::other> node_container;
 
     typedef boost::uint_fast16_t node_count_type;
     typedef boost::uint_fast8_t thread_count_type;
@@ -103,7 +102,11 @@ public:
         if (remaining == 0)
             return; //fast-path
 
+#ifdef __PATHCC__
+        queue_node_data * data = &nodes.front();
+#else
         queue_node_data * data = nodes.data();
+#endif
 
         if (remaining & 1) {
             (*data)(thread_index);

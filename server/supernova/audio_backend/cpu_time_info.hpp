@@ -27,7 +27,7 @@ namespace nova {
 
 struct cpu_time_info
 {
-    static const int size = 64;
+    static const size_t size = 512; // 700 ms at 128 samples 96kHz, 6.9 s at 512 samples 44.1kHz
 
     cpu_time_info(void):
         index(size - 1), buffer(size, 0.f)
@@ -46,7 +46,11 @@ struct cpu_time_info
     {
         const float average_factor = 1.f/size;
         float sum;
+#ifdef __PATHCC__
+        horizontal_maxsum_vec_simd(peak, sum, &buffer.front(), size);
+#else
         horizontal_maxsum_vec_simd(peak, sum, buffer.data(), size);
+#endif
         average = sum * average_factor;
     }
 

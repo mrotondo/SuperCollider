@@ -1,6 +1,8 @@
 
 if(NOT NO_LIBSNDFILE)
 	find_package(Sndfile)
+else()
+	add_definitions("-DNO_LIBSNDFILE")
 endif()
 
 include_directories(${CMAKE_SOURCE_DIR}/include/common
@@ -48,8 +50,7 @@ set(plugin_sources
 	UnaryOpUGens.cpp
 	UnpackFFTUGens.cpp
 
-	KeyboardUGens.cpp
-	MouseUGens.cpp
+	UIUGens.cpp
 )
 
 set(plugins "")
@@ -74,7 +75,7 @@ foreach(plugin ${plugin_sources})
 	list(APPEND plugins ${plugin_name})
 endforeach(plugin)
 
-set(uiugens MouseUGens KeyboardUGens)
+set(uiugens UIUGens)
 
 if (WIN32)
     if(MSVC)
@@ -142,7 +143,7 @@ if (SUPERNOVA)
                     APPEND PROPERTY COMPILE_DEFINITIONS  "SUPERNOVA")
 	endforeach(plugin)
 
-	list(APPEND uiugens KeyboardUGens_supernova MouseUGens_supernova)
+	list(APPEND uiugens UIUGens_supernova)
 
 	add_library(FFT_UGens_supernova MODULE
 				FFTInterfaceTable.cpp
@@ -213,19 +214,24 @@ foreach (plugin ${plugins})
     endif()
 endforeach()
 
+foreach (plugin ${supernova_plugins})
+    if (WIN32)
+        target_link_libraries(${plugin} ws2_32)
+    endif()
+endforeach()
 
 if (CMAKE_SYSTEM_NAME MATCHES "Linux")
-	find_package(X11)
+	find_package(X11 REQUIRED)
 
-	if(X11_FOUND)
-		include_directories(X11_INCLUDE_DIR)
-
-		foreach (ugen ${uiugens})
-			target_link_libraries(${ugen} ${X11_X11_LIB})
-		endforeach()
-	elseif()
-		message(SEND_ERROR "Cannot find libx11")
+	if (NOT X11_Xt_FOUND)
+		message(FATAL_ERROR "libxt not found")
 	endif()
+
+	include_directories(X11_Xt_INCLUDE_PATH)
+
+	foreach (ugen ${uiugens})
+		target_link_libraries(${ugen} ${X11_X11_LIB})
+	endforeach()
 elseif (APPLE)
 	foreach (ugen ${uiugens})
 		target_link_libraries(${ugen} "-framework CoreServices -framework Carbon")

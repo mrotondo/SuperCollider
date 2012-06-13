@@ -1,17 +1,13 @@
 Main : Process {
-	// do not change the next lines manually:
-	//==== replace with new version from bash script ====
-classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
-	//==== end replace ====
-
 	var <platform, argv;
-	var <>recvOSCfunc;
-	var <customPorts;
+	var recvOSCfunc, prRecvOSCFunc;
+	var openPorts;
 
 		// proof-of-concept: the interpreter can set this variable when executing code in a file
 		// should be nil most of the time
 
 	startup {
+	    var didWarnOverwrite = false;
 		// setup the platform first so that class initializers can call platform methods.
 		// create the platform, then intialize it so that initPlatform can call methods
 		// that depend on thisProcess.platform methods.
@@ -26,11 +22,12 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 		GeneralHID.fromID( this.platform.defaultHIDScheme );
 		this.platform.startup;
 		StartUp.run;
+		openPorts = Set[NetAddr.langPort];
 
-		("Welcome to SuperCollider"
+		("Welcome to SuperCollider" + Main.version
 			++ (Platform.ideName.switch(
 				"scvim", {", type :SChelp for help"},
-				"scel",  {", type ctrl-c ctrl-h for help"},
+				"scel",  {", type C-c C-y for help"},
 				"sced",  {", type ctrl-U for help"},
 				"scapp", {", type cmd-d for help"}
 			) ?? {
@@ -44,6 +41,16 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 			})
 		).postln;
 
+		Main.overwriteMsg.split(Char.nl).drop(-1).collect(_.split(Char.tab)).do {|x|
+			if(x[2].beginsWith(Platform.classLibraryDir) and: {x[1].contains(""+/+"SystemOverwrites"+/+"").not}
+			) {
+				warn("Extension in '%' overwrites % in main class library.".format(x[1],x[0]));
+				didWarnOverwrite = true;
+			}
+		};
+		if(didWarnOverwrite) {
+			inform("\nIntentional overwrites must be put in a 'SystemOverwrites' subfolder.")
+		}
 	}
 
 	shutdown { // at recompile, quit
@@ -66,7 +73,8 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 
 	recvOSCmessage { arg time, replyAddr, recvPort, msg;
 		// this method is called when an OSC message is received.
-		recvOSCfunc.value(time, replyAddr, recvPort, msg);
+		recvOSCfunc.value(time, replyAddr, msg);
+		prRecvOSCFunc.value(msg, time, replyAddr, recvPort); // same order as OSCFunc
 		OSCresponder.respond(time, replyAddr, msg);
 	}
 
@@ -76,24 +84,28 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 			this.recvOSCmessage(time, replyAddr, recvPort, msg);
 		});
 	}
-	
-	addOSCFunc { |func| recvOSCfunc = recvOSCfunc.addFunc(func) }
-	
-	removeOSCFunc { |func| recvOSCfunc = recvOSCfunc.removeFunc(func) }
-	
-	replaceOSCFunc { |func, newFunc| recvOSCfunc = recvOSCfunc.replaceFunc(func, newFunc) }
-	
+
+	addOSCRecvFunc { |func| prRecvOSCFunc = prRecvOSCFunc.addFunc(func) }
+
+	removeOSCRecvFunc { |func| prRecvOSCFunc = prRecvOSCFunc.removeFunc(func) }
+
+	replaceOSCRecvFunc { |func, newFunc| prRecvOSCFunc = prRecvOSCFunc.replaceFunc(func, newFunc) }
+
+	openPorts { ^openPorts.copy } // don't allow the Set to be modified from the outside
+
 	openUDPPort {|portNum|
 		var result;
+		if(openPorts.includes(portNum), {^true});
 		result = this.prOpenUDPPort(portNum);
-		if(result, { customPorts = customPorts ++ [portNum]; });
+		if(result, { openPorts = openPorts.add(portNum); });
 		^result;
 	}
-	
+
 	prOpenUDPPort {|portNum|
 		_OpenUDPPort
+		^false
 	}
-	
+
 	newSCWindow {
 		var win, palette;
 		win = SCWindow("construction");
@@ -112,10 +124,10 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 	}
 
 	showHelpBrowser {
-		HelpBrowser.openBrowser;
+		HelpBrowser.openBrowsePage;
 	}
 	showHelpSearch {
-		HelpBrowser.openSearch(this.getCurrentSelection);
+		HelpBrowser.openSearchPage(this.getCurrentSelection);
 	}
 	showHelp {
 		HelpBrowser.openHelpFor(this.getCurrentSelection);
@@ -128,21 +140,21 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 		(class ? Object).browse;
 	}
 
-	*version {^[scVersionMajor, ".", scVersionMinor, scVersionPostfix].join}
+	*version {^[this.scVersionMajor, ".", this.scVersionMinor, this.scVersionPostfix].join}
 
 	*versionAtLeast { |maj, min|
-		^if((maj==scVersionMajor) and:{min.notNil}){
-			scVersionMinor >= min
+		^if((maj==this.scVersionMajor) and:{min.notNil}){
+			this.scVersionMinor >= min
 		}{
-			scVersionMajor >= maj
+			this.scVersionMajor >= maj
 		};
 	}
 
 	*versionAtMost { |maj, min|
-		^if((maj==scVersionMajor) and:{min.notNil}){
-			scVersionMinor <= min
+		^if((maj==this.scVersionMajor) and:{min.notNil}){
+			this.scVersionMinor <= min
 		}{
-			scVersionMajor <= maj
+			this.scVersionMajor <= maj
 		};
 	}
 

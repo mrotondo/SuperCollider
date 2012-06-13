@@ -25,6 +25,7 @@
 #include "SC_Types.h"
 #include <stdexcept>
 #include <cstring>
+#include <string>
 
 struct netaddr {
 	int socket;
@@ -44,7 +45,7 @@ struct scpacket {
 
 	void throw_overflow_exception()
 	{
-		throw std::runtime_error("buffer overflow");
+		throw std::runtime_error(std::string("buffer overflow"));
 	}
 
 	scpacket() { reset(); }

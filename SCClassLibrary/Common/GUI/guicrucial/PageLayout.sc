@@ -1,14 +1,12 @@
-PageLayout  {
-	/* creates and manages the open/close lifecycle of a window with a top level FlowView.
-		it also manages onClose handlers for use by ObjectGui's MVC model,
-		intelligent resizing
 
-		this was previously called MultiPageLayout (for historical reasons)
-		which is now an innacurate name.
-		the MultiPageLayout class is in cruciallib pending deprecation
-	*/
+
+PageLayout  {
+
+	// a Window with a FlowView on it
+	// it also manages onClose handlers for use by ObjectGui's MVC model,
+
 	var <window,<view;
-	var <>isClosed=false,boundsWereExplicit=false;
+	var <>isClosed=false,boundsWereExplicit=false,<>onClose;
 
 	var autoRemoves;
 
@@ -18,19 +16,16 @@ PageLayout  {
 
 	init { arg title,bounds,argMargin,background,argScroll=true,front=true;
 		var w,v;
-		bounds = if(bounds.notNil,{
-					boundsWereExplicit = true;
-					bounds.asRect
-				},{
-					GUI.window.screenBounds.insetAll(10,20,0,25)
-				});
-		window = GUI.window.new("< " ++ title.asString ++ " >",
-					bounds, border: true, scroll: argScroll )
-			.onClose_({
-				this.close; // close all windows in this layout
-			});
+		if(bounds.notNil,{
+			boundsWereExplicit = true;
+			bounds = bounds.asRect
+		},{
+			bounds = GUI.window.screenBounds.insetAll(10,20,0,25)
+		});
+		window = GUI.window.new("< " ++ title.asString ++ " >",bounds, border: true, scroll: argScroll );
+		window.onClose_({ this.close });
 		if(background.isKindOf(Boolean),{  // bwcompat : metal=true/false
-			background = background.if(nil,{Color(0.886274509803, 0.94117647058824, 0.874509803921, 1)})
+			background = background.if(nil,{Color(0.88, 0.94, 0.87, 1)})
 		});
 
 		if(background.notNil,{
@@ -54,7 +49,13 @@ PageLayout  {
 		autoRemoves = [];
 	}
 	asView { ^this.view.asView }
-	asFlowView { ^this.view }
+	asFlowView { arg bounds;
+		^if(bounds.notNil,{
+			FlowView(this,bounds)
+		},{
+			this.view
+		})
+	}
 	bounds { ^this.view.bounds }
 	add { arg view;
 		this.view.add(view);
@@ -62,7 +63,9 @@ PageLayout  {
 	asPageLayout { arg name,bounds;
 		if(isClosed,{
 			^this.class.new(name,bounds)
-		})// else this
+		},{
+			^this
+		})
 	}
 	startRow {
 		this.view.startRow;
@@ -70,7 +73,7 @@ PageLayout  {
 	indentedRemaining { ^this.view.indentedRemaining }
 	*guify { arg parent,title,width,height,background;
 		^parent ?? {
-			this.new(title,width,height,background: background )
+			this.new(title,width@height,background: background )
 		}
 	}
 
@@ -90,22 +93,18 @@ PageLayout  {
 			isClosed = true;
 			autoRemoves.do({ arg updater; updater.remove(false) });
 			autoRemoves = nil;
-			window.do({ arg w;
-				w.close;
-			});
+			window.close;
+			onClose.value;
+			NotificationCenter.notify(window,\didClose);
 			window=view=nil;
-			NotificationCenter.notify(this,\didClose);
 		});
 	}
-	onClose_ { arg f; window.onClose = f; }
 	refresh {
 		window.refresh
 	}
-	hr { arg color,height=8,borderStyle=1; // html joke
+	hr { arg color,height=8,borderStyle=1;
 		this.view.hr;
 	}
-	// wow, old school
-	layRight { arg w,h; ^Rect(0,0,w,h) }
 
 	focus { arg index=0;
 		var first;
@@ -123,8 +122,13 @@ PageLayout  {
 		var fs, b,wb,wbw,wbh;
 
 		b = this.view.resizeToFit(reflow);
-		wbw = b.width + 4;
-		wbh = b.height + 17;
+		if(GUI.scheme.id == \cocoa,{
+			wbw = b.width + 4;
+			wbh = b.height + 17;
+		},{
+			wbw = b.width + 11;
+			wbh = b.height + 15;
+		});
 		window.setInnerExtent(wbw,wbh);
 
 		if(center and: {window.respondsTo(\setTopLeftBounds)}) {
@@ -146,7 +150,6 @@ PageLayout  {
 			window.setTopLeftBounds(wb);
 		}
 	}
-
 	reflowAll {
 		view.reflowAll;
 	}
@@ -156,5 +159,20 @@ PageLayout  {
 	endFullScreen {
 		window.endFullScreen
 	}
-
+	flow { arg func,bounds;
+		^this.view.flow(func,bounds)
+	}
+	vert { arg func,bounds,spacing;
+		^this.view.vert(func,bounds,spacing)
+	}
+	horz { arg func,bounds,spacing;
+		^this.view.horz(func,bounds,spacing)
+	}
+	comp { arg func,bounds;
+		^this.view.comp(func,bounds)
+	}
+	scroll { arg ... args;
+		^this.view.performList(\scroll,args)
+	}	
 }
+

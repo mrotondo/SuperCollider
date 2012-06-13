@@ -1,6 +1,6 @@
 /************************************************************************
 *
-* Copyright 2011 Jakob Leben (jakob.leben@gmail.com)
+* Copyright 2011-2012 Jakob Leben (jakob.leben@gmail.com)
 *
 * This file is part of SuperCollider Qt GUI.
 *
@@ -24,21 +24,27 @@
 
 #include <PyrKernel.h>
 
+#include <QKeyEvent>
+
 class QcTreeWidgetFactory : public QcWidgetFactory<QcTreeWidget>
 {
-  void initialize( QWidgetProxy *p, QcTreeWidget *w, QList<QVariant> & ) {
+  void initialize( QWidgetProxy *p, QcTreeWidget *w ) {
     p->setMouseEventWidget( w->viewport() );
   }
 };
 
-static QcTreeWidgetFactory treeWidgetFactory;
+QC_DECLARE_FACTORY( QcTreeWidget, QcTreeWidgetFactory );
 
 QcTreeWidget::QcTreeWidget()
-: _itemOnPress(0), _emitAction(true)
 {
-  connect( this, SIGNAL( currentItemChanged( QTreeWidgetItem*, QTreeWidgetItem* ) ),
-           this, SLOT( onCurrentItemChanged() ) );
-  viewport()->installEventFilter( this );
+  // Forward signals to argument-less versions connectable from SC.
+  connect( this, SIGNAL( itemActivated(QTreeWidgetItem*, int) ),
+           this, SIGNAL( action() ) );
+  connect( this, SIGNAL( itemPressed(QTreeWidgetItem*, int) ),
+           this, SIGNAL( itemPressedAction() ) );
+  connect( this, SIGNAL( currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*) ),
+           this, SIGNAL( currentItemChanged() ) );
+
 }
 
 VariantList QcTreeWidget::columns() const
@@ -191,25 +197,27 @@ void QcTreeWidget::sort( int column, bool descending )
   sortItems( column, descending ? Qt::DescendingOrder : Qt::AscendingOrder );
 }
 
-void QcTreeWidget::onCurrentItemChanged()
+void QcTreeWidget::keyPressEvent( QKeyEvent *e )
 {
-  if( _emitAction ) Q_EMIT( action() );
+  QTreeWidget::keyPressEvent( e );
+
+  switch (e->key())
+  {
+  case Qt::Key_Up:
+  case Qt::Key_Down:
+  case Qt::Key_Left:
+  case Qt::Key_Right:
+  case Qt::Key_PageUp:
+  case Qt::Key_PageDown:
+  case Qt::Key_Home:
+  case Qt::Key_End:
+    // Prevent propagating to parent when scroller reaches minimum or maximum:
+    e->accept();
+  default: break;
+  }
 }
 
-bool QcTreeWidget::eventFilter( QObject *o, QEvent *e )
-{
-  if( o == viewport() ) {
-    if( e->type() == QEvent::MouseButtonPress ) {
-      _emitAction = false;
-      _itemOnPress = QTreeWidget::currentItem();
-    }
-    else if( e->type() == QEvent::MouseButtonRelease ) {
-      _emitAction = true;
-      if( QTreeWidget::currentItem() != _itemOnPress ) Q_EMIT( action() );
-    }
-  }
-  return QTreeWidget::eventFilter( o, e );
-}
+//////////////////////////////// Item //////////////////////////////////////
 
 QcTreeWidget::ItemPtr QcTreeWidget::Item::safePtr( QTreeWidgetItem * item )
 {
@@ -222,7 +230,7 @@ QcTreeWidget::ItemPtr QcTreeWidget::Item::safePtr( QTreeWidgetItem * item )
 void QcTreeWidget::Item::initialize (
   VMGlobals *g, PyrObject *obj, const QcTreeWidget::ItemPtr &ptr )
 {
-  Q_ASSERT( isKindOf( obj, class_QTreeViewItem ) );
+  Q_ASSERT( isKindOf( obj, SC_CLASS(QTreeViewItem) ) );
   if( ptr.id() ) {
     // store the SafePtr
     QcTreeWidget::ItemPtr *newPtr = new QcTreeWidget::ItemPtr( ptr );
@@ -246,4 +254,10 @@ int QcTreeWidget::Item::finalize( VMGlobals *g, PyrObject *obj )
     delete ptr;
   }
   return errNone;
+}
+
+bool QcTreeWidget::Item::operator< (const QTreeWidgetItem &other) const
+{
+  int column = treeWidget()->sortColumn();
+  return text(column).toLower() < other.text(column).toLower();
 }

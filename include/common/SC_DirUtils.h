@@ -48,7 +48,7 @@
 // General path utilities
 
 // Add 'component' to 'path' using the platform path separator.
-void sc_AppendToPath(char *path, const char *component);
+void sc_AppendToPath(char *path, size_t max_size, const char *component);
 
 // Returns the expanded path with users home directory (also in newpath2)
 char *sc_StandardizePath(const char *path, char *newpath2);
@@ -75,6 +75,9 @@ extern const char * gIdeName; // string used for conditional compilation accordi
 void sc_GetResourceDirectory(char* pathBuf, int length);
 bool sc_IsStandAlone();
 
+#if defined(__APPLE__) && !defined(SC_IPHONE)	// running on OS X
+void sc_AppendBundleName(char *str, int size);
+#endif
 // Support for Extensions
 
 // Get the user home directory.

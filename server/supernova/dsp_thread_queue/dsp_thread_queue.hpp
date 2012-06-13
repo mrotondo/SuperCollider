@@ -27,6 +27,7 @@
 #include <boost/atomic.hpp>
 #include <boost/cstdint.hpp>
 #include <boost/thread.hpp>
+#include <cstdio>
 
 #ifdef DEBUG_DSP_THREADS
 #include <boost/foreach.hpp>
@@ -36,7 +37,9 @@
 #include <boost/lockfree/stack.hpp>
 
 #include "nova-tt/semaphore.hpp"
+
 #include "utilities/branch_hints.hpp"
+#include "utilities/utils.hpp"
 
 namespace nova
 {
@@ -177,11 +180,9 @@ public:
         printf("\titem %p\n", this);
         printf("\tactivation limit %d\n", int(activation_limit));
 
-        if (!successors.empty())
-        {
+        if (!successors.empty()) {
             printf("\tsuccessors:\n");
-            BOOST_FOREACH(dsp_thread_queue_item * item, successors)
-            {
+            BOOST_FOREACH(dsp_thread_queue_item * item, successors) {
                 printf("\t\t%p\n", item);
             }
         }
@@ -195,8 +196,7 @@ private:
     {
         dsp_thread_queue_item * ptr;
         std::size_t i = 0;
-        for (;;)
-        {
+        for (;;) {
             if (i == successors.size())
                 return NULL;
 
@@ -205,8 +205,7 @@ private:
                 break; // no need to update the next item to run
         }
 
-        while (i != successors.size())
-        {
+        while (i != successors.size()) {
             dsp_thread_queue_item * next = successors[i++]->dec_activation_count(interpreter);
             if (next)
                 interpreter.mark_as_runnable(next);
@@ -241,7 +240,9 @@ class dsp_thread_queue
     typedef boost::uint_fast16_t node_count_t;
 
     typedef nova::dsp_thread_queue_item<runnable, Alloc> dsp_thread_queue_item;
-    typedef std::vector<dsp_thread_queue_item*, Alloc> item_vector_t;
+    typedef std::vector<dsp_thread_queue_item*,
+                        typename Alloc::template rebind<dsp_thread_queue_item*>::other
+                       > item_vector_t;
 
     typedef typename Alloc::template rebind<dsp_thread_queue_item>::other item_allocator;
 
@@ -452,20 +453,55 @@ public:
 
 
 private:
+    struct backup
+    {
+        backup(int min, int max): min(min), max(max), loops(min) {}
+
+        void run(void)
+        {
+            for (int i = 0; i != loops; ++i)
+                asm(""); // empty asm to avoid optimization
+
+            loops = std::min(loops * 2, max);
+        }
+
+        void reset(void)
+        {
+            loops = min;
+        }
+
+        int min, max, loops;
+    };
+
     void run_item(thread_count_t index)
     {
-        for (;;)
-        {
-            if (node_count.load(boost::memory_order_acquire))
-            {
-                /* we still have some nodes to process */
-                int state = run_next_item(index);
+        backup b(256, 32768);
+        int poll_counts = 0;
 
-                if (state == no_remaining_items)
-                    return;
-            }
-            else
+        for (;;) {
+            if (!node_count.load(boost::memory_order_acquire))
                 return;
+
+            /* we still have some nodes to process */
+            int state = run_next_item(index);
+            switch (state) {
+            case no_remaining_items:
+                return;
+            case fifo_empty:
+                b.run();
+                ++poll_counts;
+                break;
+
+            case remaining_items:
+                b.reset();
+                poll_counts = 0;
+            }
+
+            if (poll_counts == 50000) {
+                // the maximum poll count is system-dependent. 50000 should be high enough for recent machines
+                std::printf("nova::dsp_queue_interpreter::run_item: possible lookup detected\n");
+                abort();
+            }
         }
     }
 
@@ -485,11 +521,17 @@ private:
 
     void wait_for_end(void)
     {
-        while (node_count.load(boost::memory_order_acquire) != 0)
-        {} // busy-wait for helper threads to finish
+        int count = 0;
+        while (node_count.load(boost::memory_order_acquire) != 0) {
+            ++count;
+            if (count == 1000000) {
+                std::printf("nova::dsp_queue_interpreter::run_item: possible lookup detected\n");
+                abort();
+            }
+        } // busy-wait for helper threads to finish
     }
 
-    int run_next_item(thread_count_t index)
+    HOT int run_next_item(thread_count_t index)
     {
         dsp_thread_queue_item * item;
         bool success = runnable_set.pop(item);
@@ -499,8 +541,7 @@ private:
 
         node_count_t consumed = 0;
 
-        do
-        {
+        do {
             item = item->run(*this, index);
             consumed += 1;
         } while (item != NULL);

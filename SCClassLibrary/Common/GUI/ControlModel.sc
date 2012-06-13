@@ -35,12 +35,12 @@ Spec {
 }
 
 ControlSpec : Spec {
-	var <minval, <maxval, <>warp, <>step, <>default, <>units;
+	var <minval, <maxval, <warp, <step, <>default, <>units, >grid;
 	var <clipLo, <clipHi;
 
-	*new { arg minval=0.0, maxval=1.0, warp='lin', step=0.0, default, units;
+	*new { arg minval=0.0, maxval=1.0, warp='lin', step=0.0, default, units, grid;
 		^super.newCopyArgs(minval, maxval, warp, step,
-				default ? minval, units ? ""
+				default ? minval, units ? "", grid
 			).init
 	}
 
@@ -53,21 +53,26 @@ ControlSpec : Spec {
 
 	init {
 		warp = warp.asWarp(this);
-		if(minval < maxval,{
-			clipLo = minval;
-			clipHi = maxval;
-		}, {
-			clipLo = maxval;
-			clipHi = minval;
-		});
+		clipLo = min(minval, maxval);
+		clipHi = max(minval, maxval);
 	}
 	minval_ { arg v;
 		minval = v;
 		this.init;	// rechoose the constrainfunc
+		this.changed(\minval);
 	}
 	maxval_ { arg v;
 		maxval = v;
-		this.init
+		this.init;
+		this.changed(\maxval);
+	}
+	warp_ { arg w;
+		warp = w.asWarp(this);
+		this.changed(\warp);
+	}
+	step_ { arg s;
+		step = s;
+		this.changed(\step);
 	}
 	constrain { arg value;
 		^value.asFloat.clip(clipLo, clipHi).round(step)
@@ -97,6 +102,21 @@ ControlSpec : Spec {
 		^numStep
 	}
 
+	grid { ^grid ?? {GridLines(this)} }
+
+	looseRange { |data, defaultRange = 1.0|
+		var newMin, newMax;
+		data = data.flat;
+		newMin = data.minItem;
+		newMax = data.maxItem;
+		if(newMin == newMax) {
+			newMin = newMin - (defaultRange / 2);
+			newMax = newMax + (defaultRange / 2);
+		};
+		# newMin, newMax = this.grid.looseRange(newMin,newMax);
+		^this.copy.minval_(newMin).maxval_(newMax);
+	}
+	// can deprec
 	calcRange { |data, defaultRange = 1.0|
 		var newMin, newMax;
 		data = data.flat;
@@ -127,10 +147,7 @@ ControlSpec : Spec {
 		var low = if(min.notNil) { this.unmap(min) } { 0.0 };
 		var high = if(max.notNil) { this.unmap(max) } { 1.0 };
 		if(n < 1) { ^[] };
-		val = this.map((0..n-1).normalize(low, high));
-		exp = log10(this.map(0.5).abs) * log10(base);
-		val = val.round(base ** (exp.trunc - 1));
-		^val.as(Set).as(Array).sort
+		^this.grid.getParams(low,high,numTicks:n).at('lines')
 	}
 
 	zoom { |ratio = 1|

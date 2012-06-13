@@ -21,7 +21,6 @@
 
 
 #include "SC_Lib_Cintf.h"
-#include "SC_ComPort.h"
 #include "SC_CoreAudio.h"
 #include "SC_UnitDef.h"
 #include "SC_BufGen.h"
@@ -56,10 +55,6 @@
 # define SC_PLUGIN_EXT ".scx"
 #endif
 
-// Symbol of initialization routine when loading plugins
-#ifndef SC_PLUGIN_LOAD_SYM
-#define SC_PLUGIN_LOAD_SYM "load"
-#endif
 
 #ifndef _WIN32
 # include <sys/param.h>
@@ -179,7 +174,7 @@ void initialize_library(const char *uGensPluginPath)
 		// load default plugin directory
 		char pluginDir[MAXPATHLEN];
 		sc_GetResourceDirectory(pluginDir, MAXPATHLEN);
-		sc_AppendToPath(pluginDir, SC_PLUGIN_DIR_NAME);
+		sc_AppendToPath(pluginDir, MAXPATHLEN, SC_PLUGIN_DIR_NAME);
 
 		if (sc_DirectoryExists(pluginDir)) {
 			PlugIn_LoadDir(pluginDir, true);
@@ -207,6 +202,9 @@ void initialize_library(const char *uGensPluginPath)
 	/* on darwin plugins are lazily loaded (dlopen uses mmap internally), which can produce audible
 		glitches when UGens have to be paged-in. to work around this we preload all the plugins by
 		iterating through their memory space. */
+
+#ifndef __x86_64__
+	/* seems to cause a stack corruption on llvm-gcc-4.2, sdk 10.5 on 10.6 */
 
 	unsigned long images = _dyld_image_count();
 	for(unsigned long i = 0; i < images; i++) {
@@ -240,6 +238,21 @@ void initialize_library(const char *uGensPluginPath)
 		}
 	}
 #endif
+
+#endif
+}
+
+typedef int (*InfoFunction)();
+
+bool checkAPIVersion(void * f, const char * filename)
+{
+	if (f) {
+		InfoFunction fn = (InfoFunction)f;
+		if ((*fn)() == sc_api_version)
+			return true;
+	}
+	scprintf("*** ERROR: API Version Mismatch: %s\n", filename);
+	return false;
 }
 
 static bool PlugIn_Load(const char *filename)
@@ -257,12 +270,18 @@ static bool PlugIn_Load(const char *filename)
 		return false;
 	}
 
-	void *ptr = (void *)GetProcAddress( hinstance, SC_PLUGIN_LOAD_SYM );
+	void *apiVersionPtr = (void *)GetProcAddress( hinstance, "api_version" );
+	if (!checkAPIVersion(apiVersionPtr, filename)) {
+		FreeLibrary(hinstance);
+		return false;
+	}
+
+	void *ptr = (void *)GetProcAddress( hinstance, "load" );
 	if (!ptr) {
 		char *s;
 		FormatMessage( FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
 				0, GetLastError(), 0, (char*)&s, 1, 0 );
-		scprintf("*** ERROR: GetProcAddress %s err '%s'\n", SC_PLUGIN_LOAD_SYM, s);
+		scprintf("*** ERROR: GetProcAddress err '%s'\n", s);
 		LocalFree( s );
 
 		FreeLibrary(hinstance);
@@ -286,11 +305,15 @@ static bool PlugIn_Load(const char *filename)
 		return false;
 	}
 
-	void *ptr;
+	void *apiVersionPtr = (void *)dlsym( handle, "api_version" );
+	if (!checkAPIVersion(apiVersionPtr, filename)) {
+		dlclose(handle);
+		return false;
+	}
 
-	ptr = dlsym(handle, SC_PLUGIN_LOAD_SYM);
+	void *ptr = dlsym(handle, "load");
 	if (!ptr) {
-		scprintf("*** ERROR: dlsym %s err '%s'\n", SC_PLUGIN_LOAD_SYM, dlerror());
+		scprintf("*** ERROR: dlsym load err '%s'\n", dlerror());
 		dlclose(handle);
 		return false;
 	}

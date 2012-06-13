@@ -35,6 +35,14 @@
 # Define a default exception scheme to link against
 # and validate user choice.
 #
+
+IF(PTHREADS_INCLUDE_DIR AND PTHREADS_LIBRARY)
+    SET(PTHREADS_DEFINITIONS -DHAVE_PTHREAD_H)
+    SET(PTHREADS_INCLUDE_DIRS ${PTHREADS_INCLUDE_DIR})
+    SET(PTHREADS_LIBRARIES    ${PTHREADS_LIBRARY})
+    SET(FOUND_PTHREADS TRUE)
+ENDIF()
+
 IF(NOT DEFINED PTHREADS_EXCEPTION_SCHEME)
     # Assign default if needed
     SET(PTHREADS_EXCEPTION_SCHEME "C")
@@ -79,7 +87,7 @@ ELSE(MSVC) # Unix / Cygwin / Apple / Etc.
     SET(names pthread)
 ENDIF(MSVC)
     
-FIND_LIBRARY(PTHREADS_LIBRARY ${names}
+FIND_LIBRARY(PTHREADS_LIBRARY NAMES ${names}
     DOC "The Portable Threads Library")
 
 INCLUDE(FindPackageHandleStandardArgs)

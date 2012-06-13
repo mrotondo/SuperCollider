@@ -14,7 +14,7 @@ Bus objects should not be created or modified within a link::Classes/SynthDef::.
 
 Note::
 The lowest code::n:: bus indices are reserved for hardware output and input, where
-formula::
+code::
 n = server.options.numOutputBusChannels + server.options.numInputBusChannels
 ::
 definitionlist::
@@ -100,7 +100,8 @@ Get a new Bus that is a subset of this bus (see code::newFrom::).
 
 subsection:: Asynchronous Control Bus Methods
 
-The following commands apply only to control buses and are asynchronous. For synchronous access to control buses one should use the internal server's shared control buses and link::Classes/SharedIn:: / link::Classes/SharedOut::.
+The following commands apply only to control buses and are asynchronous. For synchronous access to control busses please
+consult link::Classes/Bus#synchronous_control_bus_methods::.
 
 method:: value
 Set all channels to this float value. This command is asynchronous.
@@ -116,6 +117,7 @@ Get the current value of this control bus. This command is asynchronous.
 argument:: action
 a function that will be evaluated when the server responds, with the current value of the bus passed as an argument. This will be a float for a single channel bus, or an array of floats for a multichannel bus. The default action posts the bus values.
 
+
 method:: getn
 Get the current values of this control bus. This command is asynchronous.
 argument:: count
@@ -123,7 +125,35 @@ the number of channels to read, starting from this bus' first channel.
 argument:: action
 a function that will be evaluated when the server responds, with the current values of the bus in an array passed as an argument.
 
-subsection:: conveniences for multichannel buses:
+
+subsection:: Synchronous Control Bus Methods
+
+Synchronous access to control busses only works for servers with a shared memory interface. You can check with link::Classes/Server#-hasShmInterface#hasShmInterface:: if the server provides these methods.
+
+note:: Before 3.5 the the internal server could be controlled via shared control busses and link::Classes/SharedIn:: and
+link::Classes/SharedOut::. These classes have been deprecated and will be removed.  ::
+
+method:: getSynchronous
+Get the current value of this control bus. This command is synchronous.
+
+returns::
+Value of the control bus.
+
+method:: getnSynchronous
+Get the current values of this control bus. This command is synchronous.
+argument:: count
+The number of channels to read, starting from this bus' first channel.
+returns::
+Array of values.
+
+method:: setSynchronous
+A list of values for each channel of the control bus.  The list of values supplied should not be greater than the number of channels. This command is synchronous.
+
+method:: setnSynchronous
+As setSynchronous but takes an array as an argument.
+
+
+subsection:: Conveniences for multichannel buses
 method:: setAt
 set the bus value(s) beginning at offset. asynchronous.
 
@@ -168,6 +198,20 @@ Returns a msg of the type /c_fill for use in osc bundles.
 argument:: value
 the value to which this bus' channels will be set.
 
+subsection:: Monitoring with an oscilloscope
+
+method:: scope
+Displays a bus in a link::Classes/Stethoscope::, using the Bus' link::#-numChannels::, link::#-index::, and link::#-rate:: properties.
+code::
+Server.default = s = Server.internal
+s.boot
+b=Bus.audio(s,2);
+a={SinOsc.ar([330,440], 0, 0.4)}.play(s,b) //you won't hear this if you only have two channels
+b.scope
+
+a.free;
+b.free;
+::
 
 Examples::
 code::
@@ -284,4 +328,3 @@ b.setAt(3, 2400);
 y.free;
 b.free;
 ::
-

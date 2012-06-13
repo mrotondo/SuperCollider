@@ -28,6 +28,7 @@
 #include "SC_Sem.h"
 #include "SC_DirUtils.h"
 #include "SC_StringParser.h"
+#include "../../common/SC_SndFileHelpers.hpp"
 
 #define GET_COMPLETION_MSG(msg) \
 	mMsgSize = msg.getbsize(); \
@@ -61,7 +62,7 @@ void SndBuf_Init(SndBuf *buf)
 	buf->mask = 0;
 	buf->mask1 = 0;
 	buf->coord = 0;
-	//buf->sndfile = 0;
+	buf->sndfile = 0;
 }
 
 char* allocAndRestrictPath(World *mWorld, const char* inPath, const char* restrictBase);
@@ -420,7 +421,9 @@ bool BufFreeCmd::Stage2()
 {
 	SndBuf *buf = World_GetNRTBuf(mWorld, mBufIndex);
 	mFreeData = buf->data;
-
+#ifndef NO_LIBSNDFILE
+	if (buf->sndfile) sf_close(buf->sndfile);
+#endif
 	SndBuf_Init(buf);
 	return true;
 }
@@ -535,8 +538,8 @@ bool BufAllocReadCmd::Stage2()
 	memset(&fileinfo, 0, sizeof(fileinfo));
 	SNDFILE* sf = sf_open(mFilename, SFM_READ, &fileinfo);
 	if (!sf) {
-		char str[256];
-		sprintf(str, "File '%s' could not be opened.\n", mFilename);
+		char str[512];
+		sprintf(str, "File '%s' could not be opened: %s\n", mFilename, sf_strerror(NULL));
 		SendFailureWithBufnum(&mReplyAddress, "/b_allocRead", str, mBufIndex);	//SendFailure(&mReplyAddress, "/b_allocRead", str);
 		scprintf(str);
 		return false;
@@ -635,16 +638,16 @@ bool BufReadCmd::Stage2()
 
 	SNDFILE* sf = sf_open(mFilename, SFM_READ, &fileinfo);
 	if (!sf) {
-		char str[256];
-		sprintf(str, "File '%s' could not be opened.\n", mFilename);
+		char str[512];
+		sprintf(str, "File '%s' could not be opened: %s\n", mFilename, sf_strerror(NULL));
 		SendFailureWithBufnum(&mReplyAddress, "/b_read", str, mBufIndex); //SendFailure(&mReplyAddress, "/b_read", str);
 		scprintf(str);
 		return false;
 	}
 	if (fileinfo.channels != buf->channels) {
-		char str[256];
+		char str[512];
 		sf_close(sf);
-		sprintf(str, "channel mismatch. File'%s' has %d channels. Buffer has %d channels.\n", mFilename, fileinfo.channels, buf->channels);
+		sprintf(str, "Channel mismatch. File '%s' has %d channels. Buffer has %d channels.\n", mFilename, fileinfo.channels, buf->channels);
 		SendFailureWithBufnum(&mReplyAddress, "/b_read", str, mBufIndex); //SendFailure(&mReplyAddress, "/b_read", str);
 		scprintf(str);
 		return false;
@@ -661,8 +664,15 @@ bool BufReadCmd::Stage2()
 		sf_readf_float(sf, buf->data + (mBufOffset * buf->channels), mNumFrames);
 	}
 
-	if (mLeaveFileOpen && !buf->sndfile) buf->sndfile = sf;
-	else sf_close(sf);
+	if(buf->sndfile)
+		sf_close(buf->sndfile);
+
+	if (mLeaveFileOpen) {
+		buf->sndfile = sf;
+	} else {
+		sf_close(sf);
+		buf->sndfile = 0;
+	}
 
 	mSampleRate = (double)fileinfo.samplerate;
 
@@ -674,6 +684,7 @@ bool BufReadCmd::Stage3()
 {
 	SndBuf* buf = World_GetBuf(mWorld, mBufIndex);
 	buf->samplerate = mSampleRate;
+	if (mLeaveFileOpen) buf->mask = buf->mask1 = -1;
 
 	mWorld->mSndBufUpdates[mBufIndex].writes ++ ;
 	SEND_COMPLETION_MSG;
@@ -790,8 +801,8 @@ bool BufAllocReadChannelCmd::Stage2()
 	memset(&fileinfo, 0, sizeof(fileinfo));
 	SNDFILE* sf = sf_open(mFilename, SFM_READ, &fileinfo);
 	if (!sf) {
-		char str[256];
-		sprintf(str, "File '%s' could not be opened.\n", mFilename);
+		char str[512];
+		sprintf(str, "File '%s' could not be opened: %s\n", mFilename, sf_strerror(NULL));
 		SendFailureWithBufnum(&mReplyAddress, "/b_allocReadChannel", str, mBufIndex); //SendFailure(&mReplyAddress, "/b_allocRead", str);
 		scprintf(str);
 		return false;
@@ -916,8 +927,8 @@ bool BufReadChannelCmd::Stage2()
 
 	SNDFILE* sf = sf_open(mFilename, SFM_READ, &fileinfo);
 	if (!sf) {
-		char str[256];
-		sprintf(str, "File '%s' could not be opened.\n", mFilename);
+		char str[512];
+		sprintf(str, "File '%s' could not be opened: %s\n", mFilename, sf_strerror(NULL));
 		SendFailureWithBufnum(&mReplyAddress, "/b_readChannel", str, mBufIndex); //SendFailure(&mReplyAddress, "/b_read", str);
 		scprintf(str);
 		return false;
@@ -967,8 +978,15 @@ bool BufReadChannelCmd::Stage2()
 	}
 
 leave:
-	if (mLeaveFileOpen && !buf->sndfile) buf->sndfile = sf;
-	else sf_close(sf);
+	if(buf->sndfile)
+		sf_close(buf->sndfile);
+
+	if (mLeaveFileOpen) {
+		buf->sndfile = sf;
+	} else {
+		sf_close(sf);
+		buf->sndfile = 0;
+	}
 
 	mSampleRate = (double)fileinfo.samplerate;
 
@@ -980,6 +998,7 @@ bool BufReadChannelCmd::Stage3()
 {
 	SndBuf* buf = World_GetBuf(mWorld, mBufIndex);
 	buf->samplerate = mSampleRate;
+	if (mLeaveFileOpen) buf->mask = buf->mask1 = -1;
 
 	mWorld->mSndBufUpdates[mBufIndex].writes ++ ;
 	SEND_COMPLETION_MSG;
@@ -1001,12 +1020,6 @@ BufWriteCmd::BufWriteCmd(World *inWorld, ReplyAddress *inReplyAddress)
 #ifdef NO_LIBSNDFILE
 struct SF_INFO {};
 #endif
-
-
-extern "C" {
-int sndfileFormatInfoFromStrings(SF_INFO *info, const char *headerFormatString, const char *sampleFormatString);
-}
-
 
 int BufWriteCmd::Init(char *inData, int inSize)
 {
@@ -1065,10 +1078,8 @@ bool BufWriteCmd::Stage2()
 
 	SNDFILE* sf = sf_open(mFilename, SFM_WRITE, &mFileInfo);
 	if (!sf) {
-		char sferr[256];
-		char str[256];
-		sf_error_str(NULL, sferr, 256);
-		sprintf(str, "File '%s' could not be opened. '%s'\n", mFilename, sferr);
+		char str[512];
+		sprintf(str, "File '%s' could not be opened: %s\n", mFilename, sf_strerror(NULL));
 		SendFailureWithBufnum(&mReplyAddress, "/b_write", str, mBufIndex); //SendFailure(&mReplyAddress, "/b_write", str);
 		scprintf(str);
 		return false;
@@ -1082,8 +1093,15 @@ bool BufWriteCmd::Stage2()
 		sf_writef_float(sf, buf->data + (mBufOffset * buf->channels), mNumFrames);
 	}
 
-	if (mLeaveFileOpen && !buf->sndfile) buf->sndfile = sf;
-	else sf_close(sf);
+	if(buf->sndfile)
+		sf_close(buf->sndfile);
+
+	if (mLeaveFileOpen) {
+		buf->sndfile = sf;
+	} else {
+		sf_close(sf);
+		buf->sndfile = 0;
+	}
 
 	return true;
 #endif
@@ -1174,6 +1192,8 @@ bool AudioQuitCmd::Stage3()
 	scprintf("/quit : quit not allowed in AU host\n");
 	return false;
 #else
+	if (mWorld->hw->mShmem)
+		mWorld->hw->mShmem->disconnect();
 	return true;
 #endif
 }

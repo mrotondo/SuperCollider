@@ -1060,24 +1060,24 @@ void QDDrawBevelRect(CGContextRef cgc, CGRect bounds, float width, bool inout);
 
 - (void)setUpWarning:(double)val
 {
-	warning = val;
+	warning = nextafter(val, val + 1.0);
 	if(critical > warning) {
 		criticalAboveWarning = YES;
 	} else {
 		criticalAboveWarning = NO;
 	}
-	[self setWarningValue:val];
+	[self setWarningValue:warning];
 }
 
 - (void)setUpCritical:(double)val
 {
-	critical = val;
+	critical = nextafter(val, val + 1.0);
 	if(critical > warning) {
 		criticalAboveWarning = YES;
 	} else {
 		criticalAboveWarning = NO;
 	}
-	[self setCriticalValue:val];
+	[self setCriticalValue:critical];
 }
 
 @end
@@ -1358,6 +1358,10 @@ void QDDrawBevelRect(CGContextRef cgc, CGRect bounds, float width, bool inout);
 		return YES;
 	}
 	return NO;
+}
+
+- (void)cmdF:(id)sender {
+	[self keyDown:[NSApp currentEvent]];
 }
 @end
 
@@ -2918,32 +2922,6 @@ void SCWebView::setVisibleFromParent()
 	mTop->resetFocus();
 	refresh();
 }
-
-void SCWebView::makeFocus(bool focus)
-{
-    if (focus) {
-		if (canFocus() && !isFocus()) {
-			[mWebView setAcceptsFirstResponder:YES];
-			
-			// trick focus ring into drawing
-			SEL sel = @selector(setNeedsDisplay:);
-			NSMethodSignature *sig = [NSView instanceMethodSignatureForSelector: sel];
-			NSInvocation *anInvocation = [NSInvocation invocationWithMethodSignature: sig];
-			SCVirtualMachine* scvm = [SCVirtualMachine sharedInstance];
-			[anInvocation setTarget: [mWebView superview]];
-			[anInvocation setSelector: sel];
-			BOOL flag = YES;
-			[anInvocation setArgument: &flag atIndex: 2];
-			[scvm defer: anInvocation];
-        }
-    } else {
-        if (isFocus()) {
-			[mWebView setAcceptsFirstResponder:NO];
-        }
-    }
-	SCView::makeFocus(focus);
-}
-
 
 
 void SCWebView::tabPrevFocus()

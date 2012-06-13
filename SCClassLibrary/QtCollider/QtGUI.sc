@@ -1,7 +1,12 @@
 QtGUI {
 
+  classvar <style;
+
   *initClass {
+    Class.initClassTree( GUI );
     GUI.add( this );
+    this.style = "Plastique";
+    this.palette = QPalette.light;
   }
 
   *id { ^\qt }
@@ -46,7 +51,8 @@ QtGUI {
   *freqScope     { ^PlusFreqScopeWindow }
   *freqScopeView { ^PlusFreqScope }
   *scopeView { ^QScope }
-  *stethoscope { ^QStethoscope }
+  *stethoscope1 { ^QStethoscope }
+  *stethoscope { ^QStethoscope2 }
   *soundFileView { ^QSoundFileView }
   *envelopeView { ^QEnvelopeView }
   *tabletView { ^this.notImplemented( "TabletView"); }
@@ -69,13 +75,18 @@ QtGUI {
   *ezNumber { ^EZNumber}
   *ezRanger { ^EZRanger }
 
+  *hLayout { ^QHLayout }
+  *vLayout { ^QVLayout }
+  *gridLayout { ^QGridLayout }
+  *stackLayout { ^QStackLayout }
+
   *pen { ^QPen }
 
   *font { ^QFont }
   *image { ^this.notImplemented( "Image" ) }
 
   *notImplemented { arg class;
-    ("QtGUI: " ++ class.asString ++ " is not implemented yet").postln;
+    //("QtGUI: " ++ class.asString ++ " is not implemented yet").postln;
     ^nil;
   }
 
@@ -87,19 +98,19 @@ QtGUI {
   }
 
   *style_ { arg styleName;
-    _Qt_SetStyle
-    ^this.primitiveFailed;
+    protect { this.prSetStyle(styleName) } { |err| if(err.isNil){style = styleName} };
   }
 
   *stringBounds { arg aString, aFont;
-    var bounds = this.prStringBounds( aString, aFont, Rect.new );
+    var bounds = this.prStringBounds( aString, aFont );
     bounds.left = 0;
     bounds.top = 0;
     ^bounds
   }
 
   *palette {
-    ^this.prPalette( QPalette.new.init );
+    _Qt_GlobalPalette
+    ^this.primitiveFailed;
   }
 
   *palette_ { arg p;
@@ -123,13 +134,13 @@ QtGUI {
 
   // private ///////////////////////////////////////////////////////////
 
-  *prPalette { arg ret;
-    _Qt_GlobalPalette
-    ^this.primitiveFailed;
-  }
-
-  *prStringBounds { arg aString, aFont, aRect;
+  *prStringBounds { arg aString, aFont;
     _Qt_StringBounds
     ^this.primitiveFailed
+  }
+
+  *prSetStyle { arg name;
+    _Qt_SetStyle
+    ^this.primitiveFailed;
   }
 }

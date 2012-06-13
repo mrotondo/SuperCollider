@@ -25,13 +25,13 @@ QScrollTopView : QScrollView {
 
   bounds {
     var r;
-    r = this.getProperty( \geometry, Rect.new );
+    r = this.getProperty( \geometry );
     ^r.moveTo(0,0);
   }
 
   bounds_ { arg rect;
     var rNew = rect.asRect;
-    var rOld = this.getProperty( \geometry, Rect.new );
+    var rOld = this.getProperty( \geometry );
     this.setProperty( \geometry, rOld.resizeTo( rNew.width, rNew.height ) );
   }
 
@@ -42,7 +42,6 @@ QScrollTopView : QScrollView {
 
 QTopView : QView {
   var >window;
-  var <background;
 
   *qtClass {^'QcWindow'}
 
@@ -55,19 +54,14 @@ QTopView : QView {
 
   bounds {
     var r;
-    r = this.getProperty( \geometry, Rect.new );
+    r = this.getProperty( \geometry );
     ^r.moveTo(0,0);
   }
 
   bounds_ { arg rect;
     var rNew = rect.asRect;
-    var rOld = this.getProperty( \geometry, Rect.new );
+    var rOld = this.getProperty( \geometry );
     this.setProperty( \geometry, rOld.resizeTo( rNew.width, rNew.height ) );
-  }
-
-  background_ { arg aColor;
-    background = aColor;
-    this.setProperty( \background, aColor, true );
   }
 
   drawingEnabled_ { arg bool; this.setProperty( \drawingEnabled, bool ); }
@@ -81,37 +75,37 @@ QWindow
 {
   classvar <allWindows, <>initAction;
 
-  var resizable, <drawFunc, <onClose;
+  var resizable, <drawFunc;
   var <view;
 
   //TODO
-  var <>acceptsClickThrough=false, <>acceptsMouseOver=false;
+  var <>acceptsClickThrough=false;
   var <currentSheet;
 
-  *initClass {
-    ShutDown.add( { QWindow.closeAll } );
-  }
+  *implementsClass {^'Window'}
 
   *screenBounds {
-    ^this.prScreenBounds( Rect.new );
+    _QWindow_ScreenBounds
   }
 
   *availableBounds {
-    ^this.prAvailableBounds( Rect() );
+    _QWindow_AvailableGeometry
   }
 
   *closeAll {
     allWindows.copy.do { |win| win.close };
   }
 
-  *new { arg name,
+  /* NOTE:
+    - 'server' is only for compatibility with SwingOSC
+    - all args have to be of correct type for QWidget constructor to match!
+  */
+  *new { arg name="",
          bounds,
          resizable = true,
          border = true,
          server,
          scroll = false;
-
-    //NOTE server is only for compatibility with SwingOSC
 
     if( bounds.isNil ) {
       bounds = Rect(0,0,400,400).center_( QWindow.availableBounds.center );
@@ -150,16 +144,16 @@ QWindow
   }
 
   bounds {
-    ^QWindow.flipY( view.getProperty( \geometry, Rect.new ) );
+    ^QWindow.flipY( view.getProperty( \geometry ) );
   }
 
   setInnerExtent { arg w, h;
     // bypass this.bounds, to avoid QWindow flipping the y coordinate
-    var r = view.getProperty(\geometry, Rect.new );
+    var r = view.getProperty(\geometry );
     view.setProperty(\geometry, r.resizeTo( w, h ); )
   }
 
-  background { ^view.backgroud; }
+  background { ^view.background; }
 
   background_ { arg aColor; view.background = aColor; }
 
@@ -172,10 +166,8 @@ QWindow
     view.setProperty( \geometry, rect.moveBy( 0, menuSpacer ) );
   }
 
-  onClose_ { arg func;
-    view.manageFunctionConnection( onClose, func, 'destroyed()', false );
-    onClose = func;
-  }
+  onClose { ^view.onClose }
+  onClose_ { arg func; view.onClose_(func) }
 
   // TODO
   addToOnClose{ arg function; }
@@ -209,22 +201,14 @@ QWindow
   toFrontAction { ^view.toFrontAction }
   endFrontAction_ { arg action; view.endFrontAction_(action) }
   endFrontAction { ^view.endFrontAction }
+  acceptsMouseOver { ^view.acceptsMouseOver }
+  acceptsMouseOver_ { arg flag; view.acceptsMouseOver_(flag) }
 
   // ---------------------- private ------------------------------------
 
   *flipY { arg aRect;
     var flippedTop = QWindow.screenBounds.height - aRect.top - aRect.height;
     ^Rect( aRect.left, flippedTop, aRect.width, aRect.height );
-  }
-
-  *prScreenBounds { arg return;
-    _QWindow_ScreenBounds
-    ^this.primitiveFailed
-  }
-
-  *prAvailableBounds { arg return;
-    _QWindow_AvailableGeometry
-    ^this.primitiveFailed
   }
 
   *addWindow { arg window;

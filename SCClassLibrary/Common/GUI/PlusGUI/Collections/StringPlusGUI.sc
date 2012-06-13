@@ -4,16 +4,26 @@
 	}
 
 	openTextFile{ arg selectionStart=0, selectionLength=0;
-		var doc;
-		doc = Document.open(PathName(this).asAbsolutePath , selectionStart, selectionLength);
+		if(Document.implementationClass.notNil) {
+			Document.open(this.absolutePath , selectionStart, selectionLength);
+		} {
+			this.openOS;
+		}
 	}
 	openHTMLFile{ arg selectionStart=0, selectionLength=0;
-		// On Linux this will be overridden to ensure it opens rendered HTML
-		this.openTextFile(selectionStart, selectionLength)
+		if (Platform.openHTMLFileAction.notNil) {
+			Platform.openHTMLFileAction.value(this, selectionStart, selectionLength)
+		} {
+			this.openTextFile(selectionStart, selectionLength)
+		}
 	}
 
 	openDocument {
-		^Document.open(this)
+		if(Document.implementationClass.notNil) {
+			Document.open(this);
+		} {
+			this.openOS;
+		}
 	}
 //	*fromUser { arg prompt="Enter string :", default="";
 //		_GetStringFromUser
@@ -25,14 +35,14 @@
 		this.drawAtPoint(Point(0,0), Font.default, Color.black);
 	}
 	drawAtPoint { arg point, font, color;
-		if(GUI.id === \qt)
-			{ QPen.stringAtPoint( this, point, font, color ) }
-			{ this.prDrawAtPoint( point, font, color ) };
+		if(GUI.id === \cocoa)
+			{ this.prDrawAtPoint( point, font, color ) }
+			{ Pen.stringAtPoint( this, point, font, color ) }
 	}
 	drawInRect { arg rect, font, color;
-		if(GUI.id === \qt)
-			{ QPen.stringInRect( this, rect, font, color ) }
+		if(GUI.id === \cocoa)
 			{ this.prDrawInRect( rect, font, color ) }
+			{ Pen.stringInRect( this, rect, font, color ) }
 	}
 	prDrawAtPoint { arg point, font, color;
 		_String_DrawAtPoint
@@ -43,31 +53,31 @@
 		^this.primitiveFailed
 	}
 	drawCenteredIn { arg rect, font, color;
-		if(GUI.id === \qt)
-			{ QPen.stringCenteredIn( this, rect, font, color ) }
-			{ this.drawAtPoint(this.bounds( font ).centerIn(rect), font, color) };
+		if(GUI.id === \cocoa)
+			{ this.drawAtPoint(this.bounds( font ).centerIn(rect), font, color) }
+			{ Pen.stringCenteredIn( this, rect, font, color ) }
 	}
 	drawLeftJustIn { arg rect, font, color;
 		var pos, bounds;
-		if(GUI.id === \qt)
-			{ QPen.stringLeftJustIn( this, rect, font, color ) }
+		if(GUI.id === \cocoa)
 			{
 				bounds = this.bounds( font );
 				pos = bounds.centerIn(rect);
 				pos.x = rect.left + 2;
 				this.drawAtPoint(pos, font, color);
-			};
+			}
+			{ Pen.stringLeftJustIn( this, rect, font, color ) }
 	}
 	drawRightJustIn { arg rect, font, color;
 		var pos, bounds;
-		if(GUI.id === \qt)
-			{ QPen.stringRightJustIn( this, rect, font, color ) }
+		if(GUI.id === \cocoa)
 			{
 				bounds = this.bounds( font );
 				pos = bounds.centerIn(rect);
 				pos.x = rect.right - 2 - bounds.width;
 				this.drawAtPoint(pos, font, color);
-			};
+			}
+			{ Pen.stringRightJustIn( this, rect, font, color ) }
 	}
 
 	bounds { arg font;
@@ -97,7 +107,12 @@
 		this.findHelpFile;
 	}
 
-	openHelpFile {
-		HelpBrowser.openHelpFor(this);
+	help {
+		if (Platform.openHelpFileAction.notNil) {
+			Platform.openHelpFileAction.value(this)
+		} {
+			HelpBrowser.openHelpFor(this);
+		}
 	}
 }
+

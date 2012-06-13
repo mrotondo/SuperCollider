@@ -28,6 +28,10 @@
 
 #include "SC_OSC_Commands.h"
 
+#ifdef _WIN32
+#include "malloc.h" // for alloca
+#endif
+
 namespace nova {
 
 using namespace std;
@@ -555,7 +559,11 @@ void sc_osc_handler::handle_receive_udp(const boost::system::error_code& error,
         handle_packet_async(recv_buffer_.begin(), bytes_transferred, udp_remote_endpoint_);
     else {
         overflow_vector.insert(overflow_vector.end(), recv_buffer_.begin(), recv_buffer_.end());
+#ifdef __PATHCC__
+        handle_packet_async(&overflow_vector.front(), overflow_vector.size(), udp_remote_endpoint_);
+#else
         handle_packet_async(overflow_vector.data(), overflow_vector.size(), udp_remote_endpoint_);
+#endif
         overflow_vector.clear();
     }
 
@@ -736,6 +744,7 @@ int first_arg_as_int(received_message const & message)
 
 void quit_perform(nova_endpoint const & endpoint)
 {
+    instance->prepare_to_terminate();
     send_done_message(endpoint, "/quit");
     instance->terminate();
 }
@@ -840,6 +849,23 @@ void handle_unhandled_message(received_message const & msg)
     log_printf("unhandled message: %s\n", msg.AddressPattern());
 }
 
+static bool node_position_sanity_check(node_position_constraint const & constraint)
+{
+    switch (constraint.second) {
+    case head:
+    case tail:
+    case insert: {
+        server_node * target = constraint.first;
+        if (!target->is_group()) {
+            log_printf("Invalid position constraint (target: %d, addAction: %d)\n", target->id(), constraint.second);
+            return false;
+        }
+    }
+    }
+
+    return true;
+}
+
 sc_synth * add_synth(const char * name, int node_id, int action, int target_id)
 {
     if (!check_node_id(node_id))
@@ -850,6 +876,9 @@ sc_synth * add_synth(const char * name, int node_id, int action, int target_id)
         return NULL;
 
     node_position_constraint pos = make_pair(target, node_position(action));
+    if (!node_position_sanity_check(pos))
+        return NULL;
+
     abstract_synth * synth = instance->add_synth(name, node_id, pos);
     if (!synth)
         log_printf("Cannot create synth (synthdef: %s, node id: %d)\n", name, node_id);
@@ -1022,6 +1051,8 @@ void handle_g_new(received_message const & msg)
             continue;
 
         node_position_constraint pos = make_pair(target, node_position(action));
+        if (!node_position_sanity_check(pos))
+            continue;
 
         instance->add_group(node_id, pos);
         last_generated = node_id;
@@ -1098,6 +1129,9 @@ void g_query_tree_fill_node(osc::OutboundPacketStream & p, bool flag, server_nod
                     p << scsynth.mControls[i];
             }
         }
+    } else {
+        abstract_group const & group = static_cast<abstract_group const &>(node);
+        group.apply_on_children(boost::bind(g_query_tree_fill_node, boost::ref(p), flag, _1));
     }
 }
 
@@ -2380,9 +2414,19 @@ void handle_b_query(received_message const & msg, nova_endpoint const & endpoint
     cmd_dispatcher<realtime>::fire_io_callback(boost::bind(send_udp_message, message, endpoint));
 }
 
-void b_close_nrt_1(uint32_t index)
+template <bool realtime>
+void b_close_rt_2(completion_message & msg, nova_endpoint const & endpoint);
+
+template <bool realtime>
+void b_close_nrt_1(uint32_t index, completion_message & msg, nova_endpoint const & endpoint)
 {
     sc_factory->buffer_close(index);
+    cmd_dispatcher<realtime>::fire_rt_callback(boost::bind(b_close_rt_2<realtime>, msg, endpoint));
+}
+
+template <bool realtime>
+void b_close_rt_2(completion_message & msg, nova_endpoint const & endpoint)
+{
 }
 
 template <bool realtime>
@@ -2390,10 +2434,10 @@ void handle_b_close(received_message const & msg, nova_endpoint const & endpoint
 {
     osc::ReceivedMessageArgumentStream args = msg.ArgumentStream();
     osc::int32 index;
-
     args >> index;
 
-    cmd_dispatcher<realtime>::fire_system_callback(boost::bind(b_close_nrt_1, index));
+    completion_message message = extract_completion_message(args);
+    cmd_dispatcher<realtime>::fire_system_callback(boost::bind(b_close_nrt_1<realtime>, index, message, endpoint));
 }
 
 template <bool realtime>
@@ -2506,12 +2550,26 @@ void b_gen_nrt_3(uint32_t index, sample * free_buf, nova_endpoint const & endpoi
 template <bool realtime>
 void b_gen_nrt_1(movable_array<char> & message, nova_endpoint const & endpoint)
 {
-    sc_msg_iter msg(message.size(), (char*)message.data());
+    const char * data = (char*)message.data();
+    const char * msg_data = OSCstrskip(data); // skip address
+    size_t diff = msg_data - data;
 
-    int index = msg.geti();
-    const char * generator = (const char*)msg.gets4();
-    if (!generator)
+    sc_msg_iter msg(message.size() - diff, msg_data);
+
+    char nextTag = msg.nextTag();
+    if (nextTag != 'i') {
+        printf("/b_gen handler: invalid buffer index type %c\n", nextTag);
         return;
+    }
+    int index = msg.geti();
+
+    const char * generator = (const char*)msg.gets4();
+    if (!generator) {
+        if (nextTag += 'i') {
+            printf("/b_gen handler: invalid bufgen name\n");
+            return;
+        }
+    }
 
     sample * free_buf = sc_factory->buffer_generate(index, generator, msg);
     cmd_dispatcher<realtime>::fire_rt_callback(boost::bind(b_gen_rt_2<realtime>, index, free_buf, endpoint));
@@ -2533,7 +2591,7 @@ void b_gen_nrt_3(uint32_t index, sample * free_buf, nova_endpoint const & endpoi
 template <bool realtime>
 void handle_b_gen(received_message const & msg, size_t msg_size, nova_endpoint const & endpoint)
 {
-    movable_array<char> cmd (msg_size, msg.TypeTags()-1);
+    movable_array<char> cmd (msg_size, msg.AddressPattern());
     cmd_dispatcher<realtime>::fire_system_callback(boost::bind(b_gen_nrt_1<realtime>, cmd, endpoint));
 }
 
@@ -2834,6 +2892,8 @@ void insert_parallel_group(int node_id, int action, int target_id)
         return;
 
     node_position_constraint pos = make_pair(target, node_position(action));
+    if (!node_position_sanity_check(pos))
+        return;
 
     instance->add_parallel_group(node_id, pos);
     last_generated = node_id;
@@ -2843,8 +2903,7 @@ void handle_p_new(received_message const & msg)
 {
     osc::ReceivedMessageArgumentStream args = msg.ArgumentStream();
 
-    while(!args.Eos())
-    {
+    while(!args.Eos()) {
         osc::int32 id, action, target;
         args >> id >> action >> target;
 
@@ -3080,6 +3139,10 @@ void sc_osc_handler::handle_message_int_address(received_message const & message
 
     case cmd_b_gen:
         handle_b_gen<realtime>(message, msg_size, endpoint);
+        break;
+
+    case cmd_b_close:
+        handle_b_close<realtime>(message, endpoint);
         break;
 
     case cmd_c_set:
@@ -3328,6 +3391,11 @@ void dispatch_buffer_commands(const char * address, received_message const & mes
 
     if (strcmp(address+3, "gen") == 0) {
         handle_b_gen<realtime>(message, msg_size, endpoint);
+        return;
+    }
+
+    if (strcmp(address+3, "close") == 0) {
+        handle_b_close<realtime>(message, endpoint);
         return;
     }
 }

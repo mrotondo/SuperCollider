@@ -75,6 +75,7 @@ PyrClass *class_interpreter;
 PyrClass *class_thread;
 PyrClass *class_routine;
 PyrClass *class_finalizer;
+PyrClass *class_server_shm_interface;
 
 PyrSymbol *s_none;
 PyrSymbol *s_object;
@@ -121,6 +122,7 @@ PyrSymbol *s_finalizer;
 PyrSymbol *s_awake;
 PyrSymbol *s_appclock;
 PyrSymbol *s_systemclock;
+PyrSymbol *s_server_shm_interface;
 
 PyrSymbol *s_nocomprendo;
 PyrSymbol *s_curProcess, *s_curMethod, *s_curBlock, *s_curClosure, *s_curThread;
@@ -219,6 +221,7 @@ void initSymbols()
 	s_awake = getsym("awake");
 	s_appclock = getsym("AppClock");
 	s_systemclock = getsym("SystemClock");
+	s_server_shm_interface = getsym("ServerShmInterface");
 
 	s_linear = getsym("linear");
 	s_exponential = getsym("exponential");
@@ -797,7 +800,7 @@ public:
 		return &x;
 	}
 
-	pointer allocate(size_type n, const_pointer hint = 0)
+	pointer allocate(size_type n, const void*  hint = 0)
 	{
 		return (pointer)pyr_pool_compile->Alloc(n*sizeof(T));
 	}
@@ -1734,6 +1737,10 @@ void initClasses()
 		addIntrinsicVar(class_func, "def", &o_nil);
 		addIntrinsicVar(class_func, "context", &o_nil);
 
+	class_server_shm_interface = makeIntrinsicClass(s_server_shm_interface, s_object, 2, 0);
+		addIntrinsicVar(class_server_shm_interface, "ptr", &o_nil);
+		addIntrinsicVar(class_server_shm_interface, "finalizer", &o_nil);
+
 	gTagClassTable[ 0] = NULL;
 	gTagClassTable[ 1] = NULL;
 	gTagClassTable[ 2] = class_int;
@@ -2108,11 +2115,11 @@ bool FrameSanity(PyrFrame *frame, const char *tagstr)
 	bool failed = false;
 	if (frame==NULL) return false;
 	if (NotObj(&frame->method)) {
-		postfl("Frame %X method tag wrong %X\n", frame, GetTag(&frame->method));
+		postfl("Frame %p method tag wrong %p\n", frame, GetTag(&frame->method));
 		failed = true;
 	//} else if (!isKindOf((PyrObject*)slotRawObject(&frame->method)->classptr, class_fundef)) {
 	} else if (slotRawObject(&frame->method)->classptr != class_method && slotRawObject(&frame->method)->classptr != class_fundef) {
-		postfl("Frame %X method class wrong %X\n", frame, slotRawObject(&frame->method)->classptr);
+		postfl("Frame %p method class wrong %p\n", frame, slotRawObject(&frame->method)->classptr);
 		failed = true;
 		//if (slotRawObject(&frame->method)->classptr->classptr == class_class) {
 		postfl("class: '%s'\n", slotRawSymbol(&slotRawObject(&frame->method)->classptr->name)->name);
@@ -2120,29 +2127,29 @@ bool FrameSanity(PyrFrame *frame, const char *tagstr)
 		//	postfl("not even a class\n");
 		//}
 	} else if (NotObj(&slotRawBlock(&frame->method)->code)) {
-		postfl("Method %X code tag wrong %X\n", slotRawBlock(&frame->method), GetTag(&slotRawBlock(&frame->method)->code));
+		postfl("Method %p code tag wrong %p\n", slotRawBlock(&frame->method), GetTag(&slotRawBlock(&frame->method)->code));
 		failed = true;
 	} else if (slotRawObject(&slotRawBlock(&frame->method)->code)->classptr != class_int8array) {
-		postfl("Code %X class wrong %X\n", slotRawObject(&slotRawBlock(&frame->method)->code), slotRawObject(&slotRawBlock(&frame->method)->code)->classptr);
+		postfl("Code %p class wrong %p\n", slotRawObject(&slotRawBlock(&frame->method)->code), slotRawObject(&slotRawBlock(&frame->method)->code)->classptr);
 			postfl("class: '%s'\n", slotRawSymbol(&slotRawObject(&slotRawBlock(&frame->method)->code)->classptr->name)->name);
 		failed = true;
 	}
 	/*
 	if (frame->caller.utag != tagHFrame && frame->caller.utag != tagNil) {
-		postfl("Frame %X caller tag wrong %X\n", frame, frame->caller.utag);
+		postfl("Frame %p caller tag wrong %p\n", frame, frame->caller.utag);
 		failed = true;
 	}
 	if (frame->context.utag != tagHFrame && frame->context.utag != tagNil) {
-		postfl("Frame %X context tag wrong %X\n", frame, frame->context.utag);
+		postfl("Frame %p context tag wrong %p\n", frame, frame->context.utag);
 		failed = true;
 	}
 	if (frame->homeContext.utag != tagHFrame && frame->homeContext.utag != tagNil) {
-		postfl("Frame %X homeContext tag wrong %X\n", frame, frame->homeContext.utag);
+		postfl("Frame %p homeContext tag wrong %p\n", frame, frame->homeContext.utag);
 		failed = true;
 	}
 	*/
 	if (!IsPtr(&frame->ip)) {
-		postfl("Frame %X ip tag wrong %X\n", frame, GetTag(&frame->ip));
+		postfl("Frame %p ip tag wrong %p\n", frame, GetTag(&frame->ip));
 		failed = true;
 	}
 	return failed;
@@ -2478,20 +2485,14 @@ PyrMethod* newPyrMethod()
 
 void freePyrSlot(PyrSlot *slot)
 {
-	if (NotNil(slot)) {
-		PyrObject *obj;
-		if (IsSym(slot))
-				obj = (PyrObject*)slotRawSymbol(slot); // i don't want to know, what this means
-		else if (IsObj(slot))
-				obj = slotRawObject(slot);
-		else
-				assert(false);
+	if (IsObj(slot)) {
+		PyrObject *obj = slotRawObject(slot);
 
 		if (obj && obj->IsPermanent()) {
 			// don't deallocate these
-			if (obj != slotRawObject(&o_emptyarray) && obj != slotRawObject(&o_onenilarray) && obj != slotRawObject(&o_argnamethis)) {
+			if (obj != slotRawObject(&o_emptyarray) && obj != slotRawObject(&o_onenilarray) && obj != slotRawObject(&o_argnamethis))
 				pyr_pool_runtime->Free((void*)obj);
-			}
+
 			SetNil(slot);
 		}
 	}
@@ -2730,7 +2731,7 @@ int putIndexedFloat(PyrObject *obj, double val, int index)
 
 static int hashPtr(void* ptr)
 {
-    int32 hashed_part = int32((long)ptr&0xffffffff);
+    int32 hashed_part = int32((size_t)ptr&0xffffffff);
     return Hash(hashed_part);
 }
 
