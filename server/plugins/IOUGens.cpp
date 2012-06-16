@@ -21,9 +21,9 @@
 
 #include "SC_PlugIn.h"
 
-#ifdef SC_IPHONE
-#include "SC_VFP11.h"
-#endif
+//#ifdef SC_IPHONE
+//#include "SC_VFP11.h"
+//#endif
 
 #ifdef SUPERNOVA
 #include "nova-tt/spin_lock.hpp"
